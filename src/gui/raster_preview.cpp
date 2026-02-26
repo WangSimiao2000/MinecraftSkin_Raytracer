@@ -1,5 +1,8 @@
 #include "gui/raster_preview.h"
 #include <cmath>
+#include <QCursor>
+#include <QFont>
+#include <QPainter>
 #include <QVector3D>
 
 // ─── Shader sources ─────────────────────────────────────────────────────────
@@ -44,6 +47,7 @@ void main() {
     if (texColor.a < 0.01) discard;
 
     vec3 N = normalize(vNormal);
+    if (!gl_FrontFacing) N = -N;  // two-sided lighting
     vec3 L = normalize(uLightPos - vWorldPos);
     vec3 V = normalize(uViewPos - vWorldPos);
     vec3 H = normalize(L + V);
@@ -132,6 +136,11 @@ RasterPreview::RasterPreview(QWidget* parent)
     : QOpenGLWidget(parent)
 {
     setMinimumSize(400, 300);
+    setFocusPolicy(Qt::StrongFocus);
+
+    frameTimer_ = new QTimer(this);
+    frameTimer_->setInterval(16); // ~60fps
+    connect(frameTimer_, &QTimer::timeout, this, &RasterPreview::onFrameTick);
 }
 
 RasterPreview::~RasterPreview() {
@@ -166,6 +175,26 @@ void RasterPreview::setCameraRotation(float yaw, float pitch) {
     update();
 }
 
+Camera RasterPreview::currentCamera() const {
+    Camera cam;
+    cam.up = Vec3(0.0f, 1.0f, 0.0f);
+    cam.fov = 45.0f; // matches projectionMatrix()
+
+    if (cameraMode_ == CameraMode::Free) {
+        cam.position = cameraController_.position();
+        cam.target = cameraController_.target();
+    } else {
+        float yawRad = cameraYaw_ * 3.14159265f / 180.0f;
+        float pitchRad = cameraPitch_ * 3.14159265f / 180.0f;
+        float camX = cameraDistance_ * cosf(pitchRad) * sinf(yawRad);
+        float camY = cameraDistance_ * sinf(pitchRad);
+        float camZ = cameraDistance_ * cosf(pitchRad) * cosf(yawRad);
+        cam.position = Vec3(camX, camY + 18.0f, camZ);
+        cam.target = Vec3(0.0f, 18.0f, 0.0f);
+    }
+    return cam;
+}
+
 // ─── OpenGL lifecycle ───────────────────────────────────────────────────────
 
 void RasterPreview::initializeGL() {
@@ -173,6 +202,7 @@ void RasterPreview::initializeGL() {
 
     glClearColor(0.2f, 0.2f, 0.25f, 1.0f);
     glEnable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -198,20 +228,33 @@ void RasterPreview::initializeGL() {
 }
 
 void RasterPreview::paintGL() {
+    // Re-apply GL state (QPainter may have changed it in the previous frame)
+    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    QMatrix4x4 view = viewMatrix();
+    QMatrix4x4 view;
+    QVector3D viewPos;
+
+    if (cameraMode_ == CameraMode::Free) {
+        view = freeViewMatrix();
+        Vec3 pos = cameraController_.position();
+        viewPos = QVector3D(pos.x, pos.y, pos.z);
+    } else {
+        view = viewMatrix();
+        float yawRad = cameraYaw_ * 3.14159265f / 180.0f;
+        float pitchRad = cameraPitch_ * 3.14159265f / 180.0f;
+        float camX = cameraDistance_ * cosf(pitchRad) * sinf(yawRad);
+        float camY = cameraDistance_ * sinf(pitchRad);
+        float camZ = cameraDistance_ * cosf(pitchRad) * cosf(yawRad);
+        viewPos = QVector3D(camX, camY + 18.0f, camZ);
+    }
+
     QMatrix4x4 proj = projectionMatrix();
     QMatrix4x4 model; // identity
-
-    // Camera position for specular calculation
-    float yawRad = cameraYaw_ * 3.14159265f / 180.0f;
-    float pitchRad = cameraPitch_ * 3.14159265f / 180.0f;
-    float camX = cameraDistance_ * cosf(pitchRad) * sinf(yawRad);
-    float camY = cameraDistance_ * sinf(pitchRad);
-    float camZ = cameraDistance_ * cosf(pitchRad) * cosf(yawRad);
-    // Orbit target: center of the character model (~y=18)
-    QVector3D viewPos(camX, camY + 18.0f, camZ);
 
     // ── Draw meshes ──
     if (!glMeshes_.empty()) {
@@ -250,6 +293,16 @@ void RasterPreview::paintGL() {
         lightVao_.release();
         lightShader_->release();
     }
+
+    // ── Draw mode indicator text ──
+    QPainter painter(this);
+    painter.setPen(Qt::white);
+    painter.setFont(QFont("Sans", 10));
+    QString modeText = (cameraMode_ == CameraMode::Free)
+        ? QString::fromUtf8("自由模式")
+        : QString::fromUtf8("轨道模式");
+    painter.drawText(10, height() - 10, modeText);
+    painter.end();
 }
 
 void RasterPreview::resizeGL(int w, int h) {
@@ -259,10 +312,30 @@ void RasterPreview::resizeGL(int w, int h) {
 // ─── Mouse interaction ──────────────────────────────────────────────────────
 
 void RasterPreview::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::RightButton) {
+        if (cameraMode_ == CameraMode::Orbit) {
+            enterFreeMode();
+        } else {
+            exitFreeMode();
+        }
+        return;
+    }
     lastMousePos_ = event->pos();
 }
 
 void RasterPreview::mouseMoveEvent(QMouseEvent* event) {
+    if (cameraMode_ == CameraMode::Free) {
+        QPoint center = QPoint(width() / 2, height() / 2);
+        int dx = event->pos().x() - center.x();
+        int dy = event->pos().y() - center.y();
+
+        if (dx != 0 || dy != 0) {
+            cameraController_.handleMouseMove(static_cast<float>(dx), static_cast<float>(dy));
+            QCursor::setPos(mapToGlobal(center));
+        }
+        return;
+    }
+
     int dx = event->pos().x() - lastMousePos_.x();
     int dy = event->pos().y() - lastMousePos_.y();
     lastMousePos_ = event->pos();
@@ -279,6 +352,145 @@ void RasterPreview::wheelEvent(QWheelEvent* event) {
     float delta = event->angleDelta().y() / 120.0f;
     cameraDistance_ -= delta * 3.0f;
     cameraDistance_ = std::clamp(cameraDistance_, 10.0f, 200.0f);
+    update();
+}
+
+// ─── Keyboard / focus handling ──────────────────────────────────────────────
+
+void RasterPreview::keyPressEvent(QKeyEvent* event) {
+    if (cameraMode_ != CameraMode::Free) {
+        QOpenGLWidget::keyPressEvent(event);
+        return;
+    }
+
+    int key = event->key();
+    pressedKeys_.insert(key);
+
+    switch (key) {
+        case Qt::Key_W: cameraController_.setMoveFlag(CameraController::Forward, true); break;
+        case Qt::Key_S: cameraController_.setMoveFlag(CameraController::Backward, true); break;
+        case Qt::Key_A: cameraController_.setMoveFlag(CameraController::Left, true); break;
+        case Qt::Key_D: cameraController_.setMoveFlag(CameraController::Right, true); break;
+        default: QOpenGLWidget::keyPressEvent(event); return;
+    }
+}
+
+void RasterPreview::keyReleaseEvent(QKeyEvent* event) {
+    if (cameraMode_ != CameraMode::Free) {
+        QOpenGLWidget::keyReleaseEvent(event);
+        return;
+    }
+
+    int key = event->key();
+    pressedKeys_.erase(key);
+
+    switch (key) {
+        case Qt::Key_W: cameraController_.setMoveFlag(CameraController::Forward, false); break;
+        case Qt::Key_S: cameraController_.setMoveFlag(CameraController::Backward, false); break;
+        case Qt::Key_A: cameraController_.setMoveFlag(CameraController::Left, false); break;
+        case Qt::Key_D: cameraController_.setMoveFlag(CameraController::Right, false); break;
+        default: QOpenGLWidget::keyReleaseEvent(event); return;
+    }
+}
+
+void RasterPreview::focusOutEvent(QFocusEvent* event) {
+    if (cameraMode_ == CameraMode::Free) {
+        exitFreeMode();
+    }
+    QOpenGLWidget::focusOutEvent(event);
+}
+
+// ─── Frame tick / free view matrix stubs (implemented in tasks 3.4, 3.5) ────
+
+void RasterPreview::onFrameTick() {
+    cameraController_.update();
+    update();
+}
+
+QMatrix4x4 RasterPreview::freeViewMatrix() const {
+    Vec3 pos = cameraController_.position();
+    Vec3 tgt = cameraController_.target();
+
+    QVector3D eye(pos.x, pos.y, pos.z);
+    QVector3D center(tgt.x, tgt.y, tgt.z);
+    QVector3D up(0.0f, 1.0f, 0.0f);
+
+    QMatrix4x4 v;
+    v.lookAt(eye, center, up);
+    return v;
+}
+
+// ─── Mode switching ─────────────────────────────────────────────────────────
+
+void RasterPreview::enterFreeMode() {
+    cameraMode_ = CameraMode::Free;
+
+    // Compute eye position from orbit parameters
+    float yawRad = cameraYaw_ * 3.14159265f / 180.0f;
+    float pitchRad = cameraPitch_ * 3.14159265f / 180.0f;
+    float camX = cameraDistance_ * cosf(pitchRad) * sinf(yawRad);
+    float camY = cameraDistance_ * sinf(pitchRad);
+    float camZ = cameraDistance_ * cosf(pitchRad) * cosf(yawRad);
+    Vec3 eyePos(camX, camY + 18.0f, camZ);
+
+    // The orbit camera looks at (0, 18, 0). Compute yaw/pitch for CameraController.
+    // CameraController forward: (cos(pitch)*sin(yaw), sin(pitch), -cos(pitch)*cos(yaw))
+    // Direction from eye to center = (0,18,0) - eyePos
+    Vec3 center(0.0f, 18.0f, 0.0f);
+    Vec3 dir = (center - eyePos).normalize();
+
+    // Extract yaw and pitch from direction vector
+    float freePitch = std::asin(std::clamp(dir.y, -1.0f, 1.0f)) * 180.0f / 3.14159265f;
+    float freeYaw = std::atan2(dir.x, -dir.z) * 180.0f / 3.14159265f;
+
+    cameraController_.setPosition(eyePos);
+    cameraController_.setYawPitch(freeYaw, freePitch);
+
+    // Hide cursor and grab mouse
+    setCursor(Qt::BlankCursor);
+    setMouseTracking(true);
+    setFocus();
+
+    // Start frame timer
+    if (frameTimer_) {
+        frameTimer_->start();
+    }
+
+    update();
+}
+
+void RasterPreview::exitFreeMode() {
+    cameraMode_ = CameraMode::Orbit;
+
+    // Recover orbit parameters from CameraController state
+    Vec3 pos = cameraController_.position();
+    Vec3 center(0.0f, 18.0f, 0.0f);
+    Vec3 offset = pos - center;
+
+    cameraDistance_ = offset.length();
+    cameraDistance_ = std::clamp(cameraDistance_, 10.0f, 200.0f);
+
+    // Orbit yaw/pitch from offset vector
+    cameraYaw_ = std::atan2(offset.x, offset.z) * 180.0f / 3.14159265f;
+    cameraPitch_ = std::asin(std::clamp(offset.y / cameraDistance_, -1.0f, 1.0f)) * 180.0f / 3.14159265f;
+    cameraPitch_ = std::clamp(cameraPitch_, -89.0f, 89.0f);
+
+    // Restore cursor
+    setCursor(Qt::ArrowCursor);
+    setMouseTracking(false);
+
+    // Clear pressed keys
+    pressedKeys_.clear();
+    cameraController_.setMoveFlag(CameraController::Forward, false);
+    cameraController_.setMoveFlag(CameraController::Backward, false);
+    cameraController_.setMoveFlag(CameraController::Left, false);
+    cameraController_.setMoveFlag(CameraController::Right, false);
+
+    // Stop frame timer
+    if (frameTimer_) {
+        frameTimer_->stop();
+    }
+
     update();
 }
 

@@ -177,6 +177,9 @@ void MainWindow::onRenderExport()
     config.tileSize = 32;
     config.threadCount = 0; // auto-detect
 
+    // Sync camera from preview so the raytraced output matches the viewport
+    scene_.camera = preview_->currentCamera();
+
     // Capture scene and path for the worker thread
     Scene sceneCopy = scene_;
     std::string outPathStd = outputPath.toStdString();

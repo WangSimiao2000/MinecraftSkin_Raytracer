@@ -13,6 +13,7 @@ set(SOURCES
     raytracer/tile_renderer.cpp
     scene/camera.cpp
     output/image_writer.cpp
+    gui/camera_controller.cpp
     gui/raster_preview.cpp
     gui/main_window.cpp
 )

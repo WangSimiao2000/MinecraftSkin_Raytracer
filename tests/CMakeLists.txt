@@ -31,6 +31,9 @@ set(TEST_SOURCES
     test_raytracer_props.cpp
     test_tile_renderer.cpp
     test_tile_renderer_props.cpp
+    test_camera_controller_props.cpp
+    test_camera_controller.cpp
+    ${CMAKE_SOURCE_DIR}/src/gui/camera_controller.cpp
 )
 
 add_executable(mcskin_tests ${TEST_SOURCES})

@@ -7,10 +7,15 @@
 #include <QOpenGLVertexArrayObject>
 #include <QOpenGLTexture>
 #include <QMouseEvent>
+#include <QKeyEvent>
+#include <QFocusEvent>
 #include <QMatrix4x4>
+#include <QTimer>
 #include <vector>
 #include <memory>
+#include <set>
 
+#include "gui/camera_controller.h"
 #include "scene/scene.h"
 
 // GPU-side mesh data for a single Mesh.
@@ -39,6 +44,7 @@ public:
     void setScene(const Scene& scene);
     void setLightPosition(const Vec3& pos);
     void setCameraRotation(float yaw, float pitch);
+    Camera currentCamera() const;
 
 protected:
     void initializeGL() override;
@@ -47,12 +53,20 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
+    void keyReleaseEvent(QKeyEvent* event) override;
+    void focusOutEvent(QFocusEvent* event) override;
 
 private:
     void uploadMeshes();
     void buildLightIndicator();
     QMatrix4x4 viewMatrix() const;
     QMatrix4x4 projectionMatrix() const;
+
+    void onFrameTick();
+    void enterFreeMode();
+    void exitFreeMode();
+    QMatrix4x4 freeViewMatrix() const;
 
     // Scene data
     const Scene* scene_ = nullptr;
@@ -79,4 +93,10 @@ private:
     int lightVertexCount_ = 0;
 
     bool initialized_ = false;
+
+    // Free camera mode
+    CameraMode cameraMode_ = CameraMode::Orbit;
+    CameraController cameraController_;
+    QTimer* frameTimer_ = nullptr;
+    std::set<int> pressedKeys_;
 };
