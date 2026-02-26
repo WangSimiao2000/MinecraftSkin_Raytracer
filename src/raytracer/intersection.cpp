@@ -280,9 +280,59 @@ HitResult intersectMesh(const Ray& ray, const Mesh& mesh) {
         texColor = Color(1, 0, 1, 1); // Magenta for missing texture (debug)
     }
 
-    // Transparent pixel (alpha == 0) treated as miss
+    // Transparent pixel (alpha == 0) treated as miss.
+    // For outer-layer meshes, fall through to the back face so that
+    // the far side of the box is still visible (no backface culling).
     if (texColor.a == 0.0f) {
-        return result; // Miss - transparent pixel
+        if (!mesh.isOuterLayer) {
+            return result; // inner layer: miss
+        }
+
+        // Outer layer: try the exit (back) face
+        if (tmax > tHit) {
+            // Recalculate exit face axis/side
+            float tmaxRecalc2 = std::numeric_limits<float>::max();
+            int exitAxis2 = 0;
+            bool exitNegSide2 = false;
+
+            for (int i = 0; i < 3; ++i) {
+                if (std::fabs(dirArr[i]) < 1e-8f) continue;
+                float invD = 1.0f / dirArr[i];
+                float t0b = (minArr[i] - oriArr[i]) * invD;
+                float t1b = (maxArr[i] - oriArr[i]) * invD;
+                bool eNeg = false;
+                if (t0b > t1b) { std::swap(t0b, t1b); eNeg = true; }
+                if (t1b < tmaxRecalc2) {
+                    tmaxRecalc2 = t1b;
+                    exitAxis2 = i;
+                    exitNegSide2 = eNeg;
+                }
+            }
+
+            Vec3 backHitPoint = ray.at(tmax);
+            FaceInfo backFace = determineFace(mesh, exitAxis2, exitNegSide2);
+            float bu, bv;
+            computeFaceUV(backHitPoint, boxMin, boxMax, exitAxis2, exitNegSide2, bu, bv);
+
+            Color backTexColor;
+            if (backFace.texture) {
+                backTexColor = backFace.texture->sample(bu, bv);
+            } else {
+                backTexColor = Color(1, 0, 1, 1);
+            }
+
+            if (backTexColor.a > 0.0f) {
+                result.hit = true;
+                result.t = tmax;
+                result.point = backHitPoint;
+                // Flip normal to face the ray (back face)
+                result.normal = backFace.normal * -1.0f;
+                result.textureColor = backTexColor;
+                result.isOuterLayer = true;
+                return result;
+            }
+        }
+        return result; // both faces transparent
     }
 
     result.hit = true;

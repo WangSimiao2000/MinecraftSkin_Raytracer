@@ -341,7 +341,7 @@ void RasterPreview::mouseMoveEvent(QMouseEvent* event) {
     lastMousePos_ = event->pos();
 
     if (event->buttons() & Qt::LeftButton) {
-        cameraYaw_ += dx * 0.5f;
+        cameraYaw_ -= dx * 0.5f;
         cameraPitch_ += dy * 0.3f;
         cameraPitch_ = std::clamp(cameraPitch_, -89.0f, 89.0f);
         update();
