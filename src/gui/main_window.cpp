@@ -75,6 +75,15 @@ void MainWindow::setupUi()
     bounceLayout->addWidget(bounceCount_);
     panel->addWidget(bounceGroup);
 
+    // Samples per pixel (Monte Carlo AA)
+    auto* sppGroup = new QGroupBox(tr("采样数 (AA)"), this);
+    auto* sppLayout = new QHBoxLayout(sppGroup);
+    sppCount_ = new QSpinBox(this);
+    sppCount_->setRange(1, 256);
+    sppCount_->setValue(4);
+    sppLayout->addWidget(sppCount_);
+    panel->addWidget(sppGroup);
+
     // Output resolution
     auto* resGroup = new QGroupBox(tr("输出分辨率"), this);
     auto* resForm = new QFormLayout(resGroup);
@@ -174,6 +183,7 @@ void MainWindow::onRenderExport()
     config.width = outputWidth_->value();
     config.height = outputHeight_->value();
     config.maxBounces = bounceCountValue_;
+    config.samplesPerPixel = sppCount_->value();
     config.tileSize = 32;
     config.threadCount = 0; // auto-detect
 

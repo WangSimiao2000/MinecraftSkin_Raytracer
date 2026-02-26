@@ -11,6 +11,7 @@ public:
         int width = 256;
         int height = 256;
         int maxBounces = 3;
+        int samplesPerPixel = 1;
         int tileSize = 32;
         int threadCount = 0; // 0 = auto
     };

@@ -4,6 +4,7 @@
 #include <mutex>
 #include <atomic>
 #include <algorithm>
+#include <random>
 #include <stdexcept>
 
 // Static member definition
@@ -37,16 +38,35 @@ void TileRenderer::renderTile(const Tile& tile,
                               const RayTracer::Config& config,
                               Image& output) {
     float aspectRatio = static_cast<float>(config.width) / static_cast<float>(config.height);
+    int spp = std::max(1, config.samplesPerPixel);
+
+    // Per-tile RNG seeded from tile position for reproducibility
+    std::mt19937 rng(static_cast<unsigned>(tile.y * config.width + tile.x));
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
     for (int py = tile.y; py < tile.y + tile.height; ++py) {
         for (int px = tile.x; px < tile.x + tile.width; ++px) {
-            // Map pixel center to [0,1] UV coordinates
-            float u = (static_cast<float>(px) + 0.5f) / static_cast<float>(config.width);
-            float v = (static_cast<float>(py) + 0.5f) / static_cast<float>(config.height);
+            Color accum(0.0f, 0.0f, 0.0f, 0.0f);
 
-            Ray ray = scene.camera.generateRay(u, v, aspectRatio);
-            Color color = RayTracer::traceRay(ray, scene, 0, config.maxBounces);
-            output.pixels[py * output.width + px] = color;
+            for (int s = 0; s < spp; ++s) {
+                // Jittered sub-pixel offset for Monte Carlo AA
+                float jx = (spp == 1) ? 0.5f : dist(rng);
+                float jy = (spp == 1) ? 0.5f : dist(rng);
+
+                float u = (static_cast<float>(px) + jx) / static_cast<float>(config.width);
+                float v = (static_cast<float>(py) + jy) / static_cast<float>(config.height);
+
+                Ray ray = scene.camera.generateRay(u, v, aspectRatio);
+                Color c = RayTracer::traceRay(ray, scene, 0, config.maxBounces);
+                accum.r += c.r;
+                accum.g += c.g;
+                accum.b += c.b;
+                accum.a += c.a;
+            }
+
+            float inv = 1.0f / static_cast<float>(spp);
+            output.pixels[py * output.width + px] = Color(
+                accum.r * inv, accum.g * inv, accum.b * inv, accum.a * inv);
         }
     }
 }

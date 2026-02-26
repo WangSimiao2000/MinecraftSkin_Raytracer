@@ -34,6 +34,7 @@ private:
     QSlider* lightY_;
     QSlider* lightZ_;
     QSpinBox* bounceCount_;
+    QSpinBox* sppCount_;
     QSpinBox* outputWidth_;
     QSpinBox* outputHeight_;
     QPushButton* importBtn_;
