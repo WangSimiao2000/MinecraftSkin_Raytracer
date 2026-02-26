@@ -73,7 +73,7 @@ private:
     Vec3 lightPos_{5.0f, 30.0f, 20.0f};
 
     // Camera orbit
-    float cameraYaw_ = 0.0f;
+    float cameraYaw_ = 180.0f;
     float cameraPitch_ = 20.0f;
     float cameraDistance_ = 60.0f;
 
