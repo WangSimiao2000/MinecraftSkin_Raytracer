@@ -30,6 +30,7 @@ bool isInShadow(const Vec3& point, const Vec3& normal, const Vec3& lightPos, con
 Color shade(const HitResult& hit, const Vec3& viewDir, const Light& light,
             const Scene& scene, const ShadingParams& params) {
     Color texColor = hit.textureColor;
+    float originalAlpha = texColor.a;
 
     // Ambient component
     Color ambient = texColor * params.ambient;
@@ -41,7 +42,9 @@ Color shade(const HitResult& hit, const Vec3& viewDir, const Light& light,
 
     // Shadow check — if in shadow, return ambient only
     if (isInShadow(hit.point, N, light.position, scene)) {
-        return ambient.clamp();
+        Color result = ambient.clamp();
+        result.a = originalAlpha;
+        return result;
     }
 
     // Diffuse component: kd * max(0, dot(N, L)) * textureColor * lightColor
@@ -57,5 +60,6 @@ Color shade(const HitResult& hit, const Vec3& viewDir, const Light& light,
     Color specular = light.color * (params.ks * specFactor);
 
     Color result = ambient + diffuse + specular;
+    result.a = originalAlpha; // Preserve texture alpha — lighting only affects RGB
     return result.clamp();
 }

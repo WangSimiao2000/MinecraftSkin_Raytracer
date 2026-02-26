@@ -29,6 +29,7 @@ Color RayTracer::traceRay(const Ray& ray, const Scene& scene,
 
     // Compute direct shading (Blinn-Phong + shadow)
     Color shadedColor = shade(hit, viewDir, scene.light, scene, params);
+    float originalAlpha = shadedColor.a;
 
     // If we still have bounces left, compute reflection
     if (depth < maxBounces) {
@@ -49,5 +50,7 @@ Color RayTracer::traceRay(const Ray& ray, const Scene& scene,
         shadedColor = shadedColor * (1.0f - SKIN_REFLECTIVITY) + reflectedColor * SKIN_REFLECTIVITY;
     }
 
+    // Preserve the texture alpha — reflection blending should not affect opacity
+    shadedColor.a = originalAlpha;
     return shadedColor.clamp();
 }
