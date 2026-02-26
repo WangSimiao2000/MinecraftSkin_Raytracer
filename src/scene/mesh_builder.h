@@ -8,6 +8,9 @@ public:
     // Build the complete character scene from skin data
     static Scene buildScene(const SkinData& skin);
 
+    // Build a default white-model scene (no skin imported)
+    static Scene buildDefaultScene();
+
     // Build a single box mesh for a body part
     // position: center of the box
     // size: (width, height, depth)

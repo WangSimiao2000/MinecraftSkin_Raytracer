@@ -146,3 +146,28 @@ Scene MeshBuilder::buildScene(const SkinData& skin) {
 
     return scene;
 }
+
+Scene MeshBuilder::buildDefaultScene() {
+    // Create a white 1x1 texture for all faces
+    auto whiteTex = []{
+        BodyPartTexture t;
+        auto make = [](int w, int h) {
+            return TextureRegion(w, h, std::vector<Color>(w * h, Color(1, 1, 1, 1)));
+        };
+        // Dimensions don't matter much for a uniform color; use 1x1
+        t.front = make(1, 1); t.back = make(1, 1);
+        t.left  = make(1, 1); t.right = make(1, 1);
+        t.top   = make(1, 1); t.bottom = make(1, 1);
+        return t;
+    };
+
+    SkinData skin{};
+    skin.format = SkinData::NEW_64x64;
+    skin.head = whiteTex(); skin.body = whiteTex();
+    skin.rightArm = whiteTex(); skin.leftArm = whiteTex();
+    skin.rightLeg = whiteTex(); skin.leftLeg = whiteTex();
+    // Outer layers: fully transparent (default TextureRegion has no pixels)
+    // so buildScene will skip them via isFullyTransparent check.
+
+    return buildScene(skin);
+}

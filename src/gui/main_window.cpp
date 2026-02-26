@@ -121,6 +121,10 @@ void MainWindow::setupUi()
 
     connect(bounceCount_, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &MainWindow::onBounceCountChanged);
+
+    // Show default white model on startup
+    scene_ = MeshBuilder::buildDefaultScene();
+    preview_->setScene(scene_);
 }
 
 // --- Slot implementations (Task 10.2) ---
@@ -154,8 +158,8 @@ void MainWindow::onImportSkin()
 
 void MainWindow::onRenderExport()
 {
-    if (!skinLoaded_ || scene_.meshes.empty()) {
-        QMessageBox::warning(this, tr("提示"), tr("请先导入皮肤文件"));
+    if (scene_.meshes.empty()) {
+        QMessageBox::warning(this, tr("提示"), tr("场景为空，无法渲染"));
         return;
     }
 
