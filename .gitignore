@@ -1,0 +1,13 @@
+# Build
+build/
+
+# IDE
+.kiro/
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
