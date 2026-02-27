@@ -227,6 +227,14 @@ void MainWindow::setupUi()
     connect(bounceCount_, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &MainWindow::onBounceCountChanged);
 
+    auto updateExportRes = [this]() {
+        preview_->setExportResolution(outputWidth_->value(), outputHeight_->value());
+    };
+    connect(outputWidth_, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, updateExportRes);
+    connect(outputHeight_, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, updateExportRes);
+
     // Default scene
     scene_ = MeshBuilder::buildDefaultScene();
     preview_->setScene(scene_);

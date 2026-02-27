@@ -45,6 +45,7 @@ public:
     void setLightPosition(const Vec3& pos);
     void setCameraRotation(float yaw, float pitch);
     void setInteractionEnabled(bool enabled);
+    void setExportResolution(int w, int h);
     Camera currentCamera() const;
 
 protected:
@@ -95,6 +96,10 @@ private:
 
     bool initialized_ = false;
     bool interactionEnabled_ = true;
+
+    // Export resolution overlay
+    int exportW_ = 1920;
+    int exportH_ = 1080;
 
     // Free camera mode
     CameraMode cameraMode_ = CameraMode::Orbit;

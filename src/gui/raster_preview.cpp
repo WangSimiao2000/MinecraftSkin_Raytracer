@@ -3,6 +3,7 @@
 #include <QCursor>
 #include <QFont>
 #include <QPainter>
+#include <QPainterPath>
 #include <QVector3D>
 
 // ─── Shader sources ─────────────────────────────────────────────────────────
@@ -182,6 +183,12 @@ void RasterPreview::setInteractionEnabled(bool enabled) {
     }
 }
 
+void RasterPreview::setExportResolution(int w, int h) {
+    exportW_ = w;
+    exportH_ = h;
+    update();
+}
+
 Camera RasterPreview::currentCamera() const {
     Camera cam;
     cam.up = Vec3(0.0f, 1.0f, 0.0f);
@@ -303,6 +310,49 @@ void RasterPreview::paintGL() {
 
     // ── Draw mode indicator text ──
     QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    // ── Draw export resolution frame ──
+    if (exportW_ > 0 && exportH_ > 0) {
+        float exportAspect = static_cast<float>(exportW_) / static_cast<float>(exportH_);
+        float viewAspect = static_cast<float>(width()) / static_cast<float>(height());
+
+        int frameW, frameH;
+        if (viewAspect > exportAspect) {
+            // View is wider — pillarbox (bars on left/right)
+            frameH = height();
+            frameW = static_cast<int>(frameH * exportAspect);
+        } else {
+            // View is taller — letterbox (bars on top/bottom)
+            frameW = width();
+            frameH = static_cast<int>(frameW / exportAspect);
+        }
+
+        int frameX = (width() - frameW) / 2;
+        int frameY = (height() - frameH) / 2;
+        QRect frameRect(frameX, frameY, frameW, frameH);
+
+        // Dim area outside the frame
+        QPainterPath fullPath;
+        fullPath.addRect(rect());
+        QPainterPath framePath;
+        framePath.addRect(frameRect);
+        QPainterPath dimPath = fullPath.subtracted(framePath);
+        painter.fillPath(dimPath, QColor(0, 0, 0, 100));
+
+        // Draw frame border
+        QPen framePen(QColor(255, 255, 255, 180), 1.5, Qt::DashLine);
+        painter.setPen(framePen);
+        painter.drawRect(frameRect);
+
+        // Resolution label
+        painter.setPen(QColor(255, 255, 255, 200));
+        painter.setFont(QFont("Sans", 9));
+        QString resText = QString("%1×%2").arg(exportW_).arg(exportH_);
+        painter.drawText(frameX + 6, frameY + 16, resText);
+    }
+
+    // ── Mode indicator ──
     painter.setPen(Qt::white);
     painter.setFont(QFont("Sans", 10));
     QString modeText = (cameraMode_ == CameraMode::Free)
