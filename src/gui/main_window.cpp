@@ -155,20 +155,32 @@ void MainWindow::setupUi()
     setButtonColor(bgEdgeColorBtn_, bgEdgeColor_);
     fxForm->addRow(tr("边缘颜色:"), bgEdgeColorBtn_);
 
-    connect(bgCenterColorBtn_, &QPushButton::clicked, this, [this, setButtonColor]() {
+    auto updateBgPreview = [this]() {
+        preview_->setBackgroundGradient(
+            gradientBgCheck_->isChecked(),
+            static_cast<float>(gradientScale_->value()),
+            bgCenterColor_, bgEdgeColor_);
+    };
+
+    connect(bgCenterColorBtn_, &QPushButton::clicked, this, [this, setButtonColor, updateBgPreview]() {
         QColor c = QColorDialog::getColor(bgCenterColor_, this, tr("选择中心颜色"));
         if (c.isValid()) {
             bgCenterColor_ = c;
             setButtonColor(bgCenterColorBtn_, c);
+            updateBgPreview();
         }
     });
-    connect(bgEdgeColorBtn_, &QPushButton::clicked, this, [this, setButtonColor]() {
+    connect(bgEdgeColorBtn_, &QPushButton::clicked, this, [this, setButtonColor, updateBgPreview]() {
         QColor c = QColorDialog::getColor(bgEdgeColor_, this, tr("选择边缘颜色"));
         if (c.isValid()) {
             bgEdgeColor_ = c;
             setButtonColor(bgEdgeColorBtn_, c);
+            updateBgPreview();
         }
     });
+    connect(gradientBgCheck_, &QCheckBox::toggled, this, [updateBgPreview](bool) { updateBgPreview(); });
+    connect(gradientScale_, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, [updateBgPreview](double) { updateBgPreview(); });
 
     aoCheck_ = new QCheckBox(tr("环境光遮蔽 (AO)"), this);
     aoCheck_->setChecked(true);

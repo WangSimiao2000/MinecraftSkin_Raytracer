@@ -86,6 +86,36 @@ void main() {
 }
 )";
 
+// ─── Background gradient shaders ────────────────────────────────────────────
+
+static const char* bgVertexShader = R"(
+#version 330 core
+layout(location = 0) in vec2 aPos;
+out vec2 vUV;
+void main() {
+    vUV = aPos * 0.5 + 0.5;
+    gl_Position = vec4(aPos, 0.999, 1.0);
+}
+)";
+
+static const char* bgFragmentShader = R"(
+#version 330 core
+in vec2 vUV;
+uniform vec3 uCenterColor;
+uniform vec3 uEdgeColor;
+uniform float uScale;
+out vec4 FragColor;
+void main() {
+    float cx = vUV.x - 0.5;
+    float cy = vUV.y - 0.5;
+    float dist = sqrt(cx * cx + cy * cy) * 2.0 * uScale;
+    dist = clamp(dist, 0.0, 1.0);
+    float t = dist * dist;
+    vec3 color = mix(uCenterColor, uEdgeColor, t);
+    FragColor = vec4(color, 1.0);
+}
+)";
+
 // ─── Helper: generate UV sphere vertices ────────────────────────────────────
 
 static std::vector<float> generateSphereVertices(float radius, int stacks, int sectors) {
@@ -147,6 +177,8 @@ RasterPreview::RasterPreview(QWidget* parent)
 RasterPreview::~RasterPreview() {
     makeCurrent();
     glMeshes_.clear();
+    bgVao_.destroy();
+    bgVbo_.destroy();
     lightVao_.destroy();
     lightVbo_.destroy();
     doneCurrent();
@@ -186,6 +218,15 @@ void RasterPreview::setInteractionEnabled(bool enabled) {
 void RasterPreview::setExportResolution(int w, int h) {
     exportW_ = w;
     exportH_ = h;
+    update();
+}
+
+void RasterPreview::setBackgroundGradient(bool enabled, float scale,
+                                           const QColor& center, const QColor& edge) {
+    gradientEnabled_ = enabled;
+    gradientScale_ = scale;
+    bgCenterColor_ = QVector3D(center.redF(), center.greenF(), center.blueF());
+    bgEdgeColor_ = QVector3D(edge.redF(), edge.greenF(), edge.blueF());
     update();
 }
 
@@ -232,6 +273,24 @@ void RasterPreview::initializeGL() {
     lightShader_->addShaderFromSourceCode(QOpenGLShader::Fragment, lightFragmentShader);
     lightShader_->link();
 
+    // Compile background gradient shader
+    bgShader_ = std::make_unique<QOpenGLShaderProgram>();
+    bgShader_->addShaderFromSourceCode(QOpenGLShader::Vertex, bgVertexShader);
+    bgShader_->addShaderFromSourceCode(QOpenGLShader::Fragment, bgFragmentShader);
+    bgShader_->link();
+
+    // Fullscreen quad for background
+    float quadVerts[] = { -1, -1,  1, -1,  1, 1,  -1, -1,  1, 1,  -1, 1 };
+    bgVao_.create();
+    bgVao_.bind();
+    bgVbo_.create();
+    bgVbo_.bind();
+    bgVbo_.allocate(quadVerts, sizeof(quadVerts));
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
+    bgVbo_.release();
+    bgVao_.release();
+
     buildLightIndicator();
 
     initialized_ = true;
@@ -249,6 +308,20 @@ void RasterPreview::paintGL() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // ── Draw background gradient ──
+    if (gradientEnabled_ && bgShader_) {
+        glDisable(GL_DEPTH_TEST);
+        bgShader_->bind();
+        bgShader_->setUniformValue("uCenterColor", bgCenterColor_);
+        bgShader_->setUniformValue("uEdgeColor", bgEdgeColor_);
+        bgShader_->setUniformValue("uScale", gradientScale_);
+        bgVao_.bind();
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        bgVao_.release();
+        bgShader_->release();
+        glEnable(GL_DEPTH_TEST);
+    }
 
     QMatrix4x4 view;
     QVector3D viewPos;

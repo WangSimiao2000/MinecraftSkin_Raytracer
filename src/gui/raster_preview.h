@@ -46,6 +46,8 @@ public:
     void setCameraRotation(float yaw, float pitch);
     void setInteractionEnabled(bool enabled);
     void setExportResolution(int w, int h);
+    void setBackgroundGradient(bool enabled, float scale,
+                               const QColor& center, const QColor& edge);
     Camera currentCamera() const;
 
 protected:
@@ -85,9 +87,18 @@ private:
     // Shaders
     std::unique_ptr<QOpenGLShaderProgram> meshShader_;
     std::unique_ptr<QOpenGLShaderProgram> lightShader_;
+    std::unique_ptr<QOpenGLShaderProgram> bgShader_;
 
     // GPU mesh data
     std::vector<std::unique_ptr<GLMeshData>> glMeshes_;
+
+    // Background quad
+    QOpenGLVertexArrayObject bgVao_;
+    QOpenGLBuffer bgVbo_{QOpenGLBuffer::VertexBuffer};
+    bool gradientEnabled_ = true;
+    float gradientScale_ = 1.0f;
+    QVector3D bgCenterColor_{0.91f, 0.89f, 0.86f};
+    QVector3D bgEdgeColor_{0.56f, 0.63f, 0.71f};
 
     // Light indicator geometry
     QOpenGLVertexArrayObject lightVao_;
