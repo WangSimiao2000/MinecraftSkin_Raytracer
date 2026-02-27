@@ -3,6 +3,11 @@ project(MCSkin_RaytraceRenderer LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# MSVC: required flags for Qt6 compatibility and UTF-8 source encoding
+if(MSVC)
+    add_compile_options(/Zc:__cplusplus /permissive- /utf-8)
+endif()
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
@@ -13,15 +18,27 @@ option(BUILD_TESTS "Build unit tests" ON)
 # ── Qt6 ──────────────────────────────────────────────────────────────────────
 find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGL OpenGLWidgets Network)
 
-# ── GLM ──────────────────────────────────────────────────────────────────────
-find_package(glm REQUIRED)
+# ── FetchContent dependencies ────────────────────────────────────────────────
+include(FetchContent)
 
-# ── Google Test ──────────────────────────────────────────────────────────────
+# ── GLM (header-only, fetched as source) ─────────────────────────────────────
+FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG        1.0.1
+)
+FetchContent_MakeAvailable(glm)
+
+# ── Google Test + RapidCheck ─────────────────────────────────────────────────
 if(BUILD_TESTS)
-    find_package(GTest REQUIRED)
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG        v1.15.2
+    )
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
 
-    # ── RapidCheck (FetchContent) ────────────────────────────────────────────
-    include(FetchContent)
     FetchContent_Declare(
         rapidcheck
         GIT_REPOSITORY https://github.com/emil-e/rapidcheck.git

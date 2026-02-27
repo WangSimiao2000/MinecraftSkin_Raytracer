@@ -41,3 +41,14 @@ target_link_libraries(mcskin_raytracer PRIVATE
     Qt6::OpenGLWidgets
     Qt6::Network
 )
+
+# ── Auto-deploy Qt DLLs on Windows after build ──────────────────────────────
+if(WIN32)
+    # Qt6 provides this helper since 6.5
+    qt_generate_deploy_app_script(
+        TARGET mcskin_raytracer
+        OUTPUT_SCRIPT deploy_script
+        NO_UNSUPPORTED_PLATFORM_ERROR
+    )
+    install(SCRIPT ${deploy_script})
+endif()

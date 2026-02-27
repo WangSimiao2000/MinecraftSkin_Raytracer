@@ -20,6 +20,8 @@ Minecraft 皮肤光线追踪渲染器 — 基于纯 CPU 软件光线追踪的桌
 
 ## 快速开始
 
+### Linux
+
 ```bash
 # 一键安装依赖并构建
 ./scripts/setup.sh
@@ -29,18 +31,43 @@ Minecraft 皮肤光线追踪渲染器 — 基于纯 CPU 软件光线追踪的桌
 
 ```bash
 # Ubuntu/Debian
-sudo apt install -y build-essential cmake qt6-base-dev libqt6opengl6-dev \
-    libglm-dev libgtest-dev libgl-dev
+sudo apt install -y build-essential cmake git \
+    qt6-base-dev libqt6opengl6-dev libqt6network6-dev qt6-base-dev-tools libgl-dev
 
 # 构建
 mkdir -p build && cd build
 cmake .. && make -j$(nproc)
 ```
 
+### Windows
+
+```powershell
+# PowerShell 一键构建
+.\scripts\setup.ps1
+```
+
+或手动操作：
+
+```powershell
+# 需要: Visual Studio 2022 (或 MSVC Build Tools), CMake, Git, Qt6 (msvc2022_64)
+mkdir build; cd build
+cmake .. -DCMAKE_PREFIX_PATH="C:\Qt\6.x.x\msvc2022_64"
+cmake --build . --config Release -j $env:NUMBER_OF_PROCESSORS
+
+# 部署 Qt DLL
+cmake --install . --config Release
+```
+
+> GLM、Google Test、RapidCheck 均通过 CMake FetchContent 自动下载，无需手动安装。
+
 ## 运行
 
 ```bash
+# Linux
 ./build/src/mcskin_raytracer
+
+# Windows (构建后需先 cmake --install 部署 Qt DLL)
+.\build\src\Release\mcskin_raytracer.exe
 ```
 
 1. 点击「导入皮肤」选择本地 Minecraft 皮肤 PNG，或在用户名框输入正版用户名点击「获取」自动下载
@@ -51,8 +78,11 @@ cmake .. && make -j$(nproc)
 ## 测试
 
 ```bash
-# 全部 138 个测试
+# Linux
 ./build/tests/mcskin_tests
+
+# Windows
+.\build\tests\Release\mcskin_tests.exe
 
 # 按模块筛选
 ./build/tests/mcskin_tests --gtest_filter="SkinParser*"
@@ -64,7 +94,8 @@ cmake .. && make -j$(nproc)
 ```
 ├── CMakeLists.txt                  # 根构建配置
 ├── scripts/
-│   └── setup.sh                    # 一键安装依赖脚本
+│   ├── setup.sh                    # Linux 一键构建脚本
+│   └── setup.ps1                   # Windows PowerShell 一键构建脚本
 ├── src/
 │   ├── CMakeLists.txt              # 构建配置（core 静态库 + GUI 可执行文件）
 │   ├── main.cpp                    # 程序入口
@@ -103,15 +134,15 @@ cmake .. && make -j$(nproc)
 | 依赖 | 版本 | 说明 |
 |------|------|------|
 | CMake | ≥ 3.22 | 构建系统 |
-| C++17 | GCC 9+ / Clang 10+ | 编译器 |
-| Qt 6 | ≥ 6.2 | GUI（Widgets, OpenGL, OpenGLWidgets） |
-| GLM | 任意 | 数学库 |
-| Google Test | 任意 | 单元测试 |
-| RapidCheck | 自动下载 | 属性测试（CMake FetchContent） |
+| C++17 | GCC 9+ / Clang 10+ / MSVC 2019+ | 编译器 |
+| Qt 6 | ≥ 6.2 | GUI（Widgets, OpenGL, OpenGLWidgets, Network） |
+| GLM | 1.0.1 | 数学库（FetchContent 自动下载） |
+| Google Test | 1.15.2 | 单元测试（FetchContent 自动下载） |
+| RapidCheck | latest | 属性测试（FetchContent 自动下载） |
 | stb | 已内置 | PNG 读写 |
 | OpenGL | ≥ 3.3 | 实时预览 |
 
-### 各发行版安装命令
+### Linux 各发行版安装命令
 
 <details>
 <summary>Ubuntu / Debian</summary>
@@ -119,8 +150,7 @@ cmake .. && make -j$(nproc)
 ```bash
 sudo apt update
 sudo apt install -y build-essential cmake git \
-    qt6-base-dev libqt6opengl6-dev \
-    libglm-dev libgtest-dev libgl-dev
+    qt6-base-dev libqt6opengl6-dev libqt6network6-dev qt6-base-dev-tools libgl-dev
 ```
 </details>
 
@@ -128,7 +158,7 @@ sudo apt install -y build-essential cmake git \
 <summary>Arch Linux</summary>
 
 ```bash
-sudo pacman -S base-devel cmake qt6-base glm gtest
+sudo pacman -S base-devel cmake git qt6-base
 ```
 </details>
 
@@ -136,16 +166,22 @@ sudo pacman -S base-devel cmake qt6-base glm gtest
 <summary>Fedora</summary>
 
 ```bash
-sudo dnf install gcc-c++ cmake qt6-qtbase-devel glm-devel gtest-devel mesa-libGL-devel
+sudo dnf install gcc-c++ cmake git qt6-qtbase-devel mesa-libGL-devel
 ```
 </details>
 
 <details>
-<summary>macOS (Homebrew)</summary>
+<summary>Windows</summary>
 
-```bash
-brew install cmake qt@6 glm googletest
-export CMAKE_PREFIX_PATH=$(brew --prefix qt@6)
+1. 安装 [Visual Studio 2022](https://visualstudio.microsoft.com/downloads/) 或 MSVC Build Tools（勾选 C++ 桌面开发）
+2. 安装 [CMake](https://cmake.org/download/)
+3. 安装 [Git](https://git-scm.com/download/win)
+4. 安装 [Qt 6](https://www.qt.io/download-qt-installer)（选择 msvc2022_64 组件）
+
+```powershell
+cmake -B build -DCMAKE_PREFIX_PATH="C:\Qt\6.x.x\msvc2022_64"
+cmake --build build --config Release
+cmake --install build --config Release   # 部署 Qt DLL
 ```
 </details>
 
