@@ -278,6 +278,9 @@ void MainWindow::onRenderExport()
     progressBar_->setValue(0);
     progressBar_->setVisible(true);
 
+    // Disable all controls during rendering
+    setControlsEnabled(false);
+
     RayTracer::Config config;
     config.width = outputWidth_->value();
     config.height = outputHeight_->value();
@@ -341,7 +344,7 @@ void MainWindow::onRenderProgress(int done, int total)
 
 void MainWindow::onRenderFinished(const QString& outputPath, bool success)
 {
-    renderBtn_->setEnabled(true);
+    setControlsEnabled(true);
     progressBar_->setVisible(false);
 
     if (success) {
@@ -351,4 +354,26 @@ void MainWindow::onRenderFinished(const QString& outputPath, bool success)
         QMessageBox::warning(this, tr("保存失败"),
             tr("无法保存图像至：\n%1\n请检查文件路径是否可写。").arg(outputPath));
     }
+}
+
+void MainWindow::setControlsEnabled(bool enabled)
+{
+    importBtn_->setEnabled(enabled);
+    usernameEdit_->setEnabled(enabled);
+    fetchBtn_->setEnabled(enabled);
+    poseCombo_->setEnabled(enabled);
+    lightX_->setEnabled(enabled);
+    lightY_->setEnabled(enabled);
+    lightZ_->setEnabled(enabled);
+    bounceCount_->setEnabled(enabled);
+    sppCount_->setEnabled(enabled);
+    outputWidth_->setEnabled(enabled);
+    outputHeight_->setEnabled(enabled);
+    gradientBgCheck_->setEnabled(enabled);
+    aoCheck_->setEnabled(enabled);
+    aoSamples_->setEnabled(enabled);
+    dofCheck_->setEnabled(enabled);
+    aperture_->setEnabled(enabled);
+    renderBtn_->setEnabled(enabled);
+    preview_->setInteractionEnabled(enabled);
 }

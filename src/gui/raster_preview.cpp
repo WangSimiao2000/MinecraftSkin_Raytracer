@@ -175,6 +175,13 @@ void RasterPreview::setCameraRotation(float yaw, float pitch) {
     update();
 }
 
+void RasterPreview::setInteractionEnabled(bool enabled) {
+    interactionEnabled_ = enabled;
+    if (!enabled && cameraMode_ == CameraMode::Free) {
+        exitFreeMode();
+    }
+}
+
 Camera RasterPreview::currentCamera() const {
     Camera cam;
     cam.up = Vec3(0.0f, 1.0f, 0.0f);
@@ -312,6 +319,7 @@ void RasterPreview::resizeGL(int w, int h) {
 // ─── Mouse interaction ──────────────────────────────────────────────────────
 
 void RasterPreview::mousePressEvent(QMouseEvent* event) {
+    if (!interactionEnabled_) return;
     if (event->button() == Qt::RightButton) {
         if (cameraMode_ == CameraMode::Orbit) {
             enterFreeMode();
@@ -324,6 +332,7 @@ void RasterPreview::mousePressEvent(QMouseEvent* event) {
 }
 
 void RasterPreview::mouseMoveEvent(QMouseEvent* event) {
+    if (!interactionEnabled_) return;
     if (cameraMode_ == CameraMode::Free) {
         QPoint center = QPoint(width() / 2, height() / 2);
         int dx = event->pos().x() - center.x();
@@ -349,6 +358,7 @@ void RasterPreview::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void RasterPreview::wheelEvent(QWheelEvent* event) {
+    if (!interactionEnabled_) return;
     float delta = event->angleDelta().y() / 120.0f;
     cameraDistance_ -= delta * 3.0f;
     cameraDistance_ = std::clamp(cameraDistance_, 10.0f, 200.0f);
@@ -358,6 +368,7 @@ void RasterPreview::wheelEvent(QWheelEvent* event) {
 // ─── Keyboard / focus handling ──────────────────────────────────────────────
 
 void RasterPreview::keyPressEvent(QKeyEvent* event) {
+    if (!interactionEnabled_) return;
     if (cameraMode_ != CameraMode::Free) {
         QOpenGLWidget::keyPressEvent(event);
         return;
@@ -376,6 +387,7 @@ void RasterPreview::keyPressEvent(QKeyEvent* event) {
 }
 
 void RasterPreview::keyReleaseEvent(QKeyEvent* event) {
+    if (!interactionEnabled_) return;
     if (cameraMode_ != CameraMode::Free) {
         QOpenGLWidget::keyReleaseEvent(event);
         return;

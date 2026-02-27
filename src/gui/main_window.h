@@ -42,6 +42,7 @@ private:
     void setupUi();
     void loadSkinFile(const QString& filePath);
     void rebuildScene();
+    void setControlsEnabled(bool enabled);
 
     RasterPreview* preview_;
     QSlider* lightX_;

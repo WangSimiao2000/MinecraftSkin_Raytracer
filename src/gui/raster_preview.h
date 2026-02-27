@@ -44,6 +44,7 @@ public:
     void setScene(const Scene& scene);
     void setLightPosition(const Vec3& pos);
     void setCameraRotation(float yaw, float pitch);
+    void setInteractionEnabled(bool enabled);
     Camera currentCamera() const;
 
 protected:
@@ -93,6 +94,7 @@ private:
     int lightVertexCount_ = 0;
 
     bool initialized_ = false;
+    bool interactionEnabled_ = true;
 
     // Free camera mode
     CameraMode cameraMode_ = CameraMode::Orbit;
