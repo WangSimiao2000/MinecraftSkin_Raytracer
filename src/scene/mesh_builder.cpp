@@ -27,8 +27,9 @@ static Vec3 rotateAroundPivot(const Vec3& point, const Vec3& pivot,
     Vec3 p = point - pivot;
 
     // Rotate around X axis (pitch: forward/backward)
+    // Negate angle so positive rotX swings toward -Z (toward camera = visual "forward")
     if (std::fabs(rotXDeg) > 0.01f) {
-        float rad = rotXDeg * static_cast<float>(M_PI) / 180.0f;
+        float rad = -rotXDeg * static_cast<float>(M_PI) / 180.0f;
         float cosA = std::cos(rad);
         float sinA = std::sin(rad);
         float newY = p.y * cosA - p.z * sinA;
