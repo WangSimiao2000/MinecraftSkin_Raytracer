@@ -129,6 +129,15 @@ Mesh MeshBuilder::buildBoxWithPose(const BodyPartTexture& tex,
                                    const Vec3& pivot,
                                    const PartPose& partPose) {
     Mesh mesh = buildBox(tex, position, size, offset);
+
+    // Store unrotated triangles and rotation params for raytracer
+    mesh.localTriangles = mesh.triangles;
+    mesh.hasRotation = true;
+    mesh.pivot = pivot;
+    mesh.rotX = partPose.rotX;
+    mesh.rotZ = partPose.rotZ;
+
+    // Apply rotation to world-space triangles (used by raster preview)
     rotateMesh(mesh, pivot, partPose.rotX, partPose.rotZ);
     return mesh;
 }

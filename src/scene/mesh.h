@@ -16,6 +16,15 @@ struct Mesh {
     // Owned texture regions: front, back, left, right, top, bottom
     std::array<TextureRegion, 6> ownedTextures;
 
+    // Pose rotation (for raytracer inverse-transform approach)
+    bool hasRotation = false;
+    Vec3 pivot;        // rotation pivot point
+    float rotX = 0.0f; // pitch degrees
+    float rotZ = 0.0f; // roll degrees
+
+    // Unrotated triangles for AABB intersection in local space
+    std::vector<Triangle> localTriangles;
+
     Mesh() = default;
 
     // Custom copy constructor: deep copy and re-point texture pointers
@@ -23,6 +32,11 @@ struct Mesh {
         : triangles(other.triangles)
         , isOuterLayer(other.isOuterLayer)
         , ownedTextures(other.ownedTextures)
+        , hasRotation(other.hasRotation)
+        , pivot(other.pivot)
+        , rotX(other.rotX)
+        , rotZ(other.rotZ)
+        , localTriangles(other.localTriangles)
     {
         fixupTexturePointers(other);
     }
@@ -33,6 +47,11 @@ struct Mesh {
             triangles = other.triangles;
             isOuterLayer = other.isOuterLayer;
             ownedTextures = other.ownedTextures;
+            hasRotation = other.hasRotation;
+            pivot = other.pivot;
+            rotX = other.rotX;
+            rotZ = other.rotZ;
+            localTriangles = other.localTriangles;
             fixupTexturePointers(other);
         }
         return *this;
@@ -43,6 +62,11 @@ struct Mesh {
         : triangles(std::move(other.triangles))
         , isOuterLayer(other.isOuterLayer)
         , ownedTextures(std::move(other.ownedTextures))
+        , hasRotation(other.hasRotation)
+        , pivot(other.pivot)
+        , rotX(other.rotX)
+        , rotZ(other.rotZ)
+        , localTriangles(std::move(other.localTriangles))
     {
         fixupTexturePointersAfterMove(other);
     }
@@ -53,6 +77,11 @@ struct Mesh {
             triangles = std::move(other.triangles);
             isOuterLayer = other.isOuterLayer;
             ownedTextures = std::move(other.ownedTextures);
+            hasRotation = other.hasRotation;
+            pivot = other.pivot;
+            rotX = other.rotX;
+            rotZ = other.rotZ;
+            localTriangles = std::move(other.localTriangles);
             fixupTexturePointersAfterMove(other);
         }
         return *this;

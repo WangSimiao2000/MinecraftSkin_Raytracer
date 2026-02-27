@@ -4,8 +4,45 @@
 #include <limits>
 #include <algorithm>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+// Rotate a point around a pivot by angles (degrees) on X and Z axes
+static Vec3 rotatePoint(const Vec3& point, const Vec3& pivot,
+                        float rotXDeg, float rotZDeg) {
+    Vec3 p = point - pivot;
+
+    if (std::fabs(rotXDeg) > 0.01f) {
+        float rad = rotXDeg * static_cast<float>(M_PI) / 180.0f;
+        float cosA = std::cos(rad);
+        float sinA = std::sin(rad);
+        float newY = p.y * cosA - p.z * sinA;
+        float newZ = p.y * sinA + p.z * cosA;
+        p.y = newY;
+        p.z = newZ;
+    }
+
+    if (std::fabs(rotZDeg) > 0.01f) {
+        float rad = rotZDeg * static_cast<float>(M_PI) / 180.0f;
+        float cosA = std::cos(rad);
+        float sinA = std::sin(rad);
+        float newX = p.x * cosA - p.y * sinA;
+        float newY = p.x * sinA + p.y * cosA;
+        p.x = newX;
+        p.y = newY;
+    }
+
+    return p + pivot;
+}
+
+// Rotate direction vector (no translation)
+static Vec3 rotateDir(const Vec3& dir, float rotXDeg, float rotZDeg) {
+    return rotatePoint(dir, Vec3(0, 0, 0), rotXDeg, rotZDeg);
+}
+
 // Compute AABB bounds from a mesh's triangles
-static void computeAABB(const Mesh& mesh, Vec3& boxMin, Vec3& boxMax) {
+static void computeAABB(const std::vector<Triangle>& triangles, Vec3& boxMin, Vec3& boxMax) {
     boxMin = Vec3( std::numeric_limits<float>::max(),
                    std::numeric_limits<float>::max(),
                    std::numeric_limits<float>::max());
@@ -13,7 +50,7 @@ static void computeAABB(const Mesh& mesh, Vec3& boxMin, Vec3& boxMax) {
                   -std::numeric_limits<float>::max(),
                   -std::numeric_limits<float>::max());
 
-    for (const auto& tri : mesh.triangles) {
+    for (const auto& tri : triangles) {
         const Vec3* verts[] = { &tri.v0, &tri.v1, &tri.v2 };
         for (const Vec3* v : verts) {
             boxMin.x = std::min(boxMin.x, v->x);
@@ -159,15 +196,16 @@ static void computeFaceUV(const Vec3& hitPoint, const Vec3& boxMin, const Vec3& 
 }
 
 
-HitResult intersectMesh(const Ray& ray, const Mesh& mesh) {
+// Core AABB intersection logic (operates in local space)
+static HitResult intersectAABB(const Ray& ray, const Mesh& mesh,
+                               const std::vector<Triangle>& tris) {
     HitResult result;
     result.hit = false;
 
-    if (mesh.triangles.empty()) return result;
+    if (tris.empty()) return result;
 
-    // Compute AABB from mesh triangles
     Vec3 boxMin, boxMax;
-    computeAABB(mesh, boxMin, boxMax);
+    computeAABB(tris, boxMin, boxMax);
 
     // Slab method for ray-AABB intersection
     float tmin = -std::numeric_limits<float>::max();
@@ -328,6 +366,41 @@ HitResult intersectMesh(const Ray& ray, const Mesh& mesh) {
     result.normal = face.normal;
     result.textureColor = texColor;
     result.isOuterLayer = mesh.isOuterLayer;
+
+    return result;
+}
+
+HitResult intersectMesh(const Ray& ray, const Mesh& mesh) {
+    if (!mesh.hasRotation) {
+        // No rotation — intersect directly with world-space triangles
+        return intersectAABB(ray, mesh, mesh.triangles);
+    }
+
+    // For rotated meshes: transform ray into local (unrotated) space,
+    // intersect with the unrotated AABB, then transform results back.
+    // Inverse rotation = apply rotations in reverse order with negated angles:
+    //   forward:  rotX then rotZ
+    //   inverse:  -rotZ then -rotX
+    Vec3 localOrigin = ray.origin;
+    Vec3 localDir = ray.direction;
+
+    // Inverse rotation around pivot: first undo rotZ, then undo rotX
+    localOrigin = rotatePoint(localOrigin, mesh.pivot, 0, -mesh.rotZ);
+    localOrigin = rotatePoint(localOrigin, mesh.pivot, -mesh.rotX, 0);
+    localDir = rotateDir(localDir, 0, -mesh.rotZ);
+    localDir = rotateDir(localDir, -mesh.rotX, 0);
+
+    Ray localRay(localOrigin, localDir.normalize());
+
+    HitResult result = intersectAABB(localRay, mesh, mesh.localTriangles);
+
+    if (result.hit) {
+        // Transform hit point and normal back to world space
+        result.point = rotatePoint(result.point, mesh.pivot, mesh.rotX, mesh.rotZ);
+        result.normal = rotateDir(result.normal, mesh.rotX, mesh.rotZ).normalize();
+        // Recompute t from original ray
+        result.t = (result.point - ray.origin).dot(ray.direction);
+    }
 
     return result;
 }
