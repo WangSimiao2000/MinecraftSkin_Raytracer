@@ -8,6 +8,7 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QMetaObject>
+#include <QScrollArea>
 
 #include "skin/skin_parser.h"
 #include "skin/skin_fetcher.h"
@@ -17,9 +18,10 @@
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
+    , poses_(getBuiltinPoses())
 {
     setWindowTitle(tr("Minecraft 皮肤光线追踪渲染器"));
-    resize(1024, 720);
+    resize(1100, 750);
     setupUi();
 }
 
@@ -33,22 +35,25 @@ void MainWindow::setupUi()
 {
     auto* central = new QWidget(this);
     setCentralWidget(central);
-
     auto* mainLayout = new QHBoxLayout(central);
 
     // --- Left: preview ---
     preview_ = new RasterPreview(this);
     preview_->setMinimumSize(400, 400);
-    mainLayout->addWidget(preview_, /*stretch=*/1);
+    mainLayout->addWidget(preview_, 1);
 
-    // --- Right: control panel ---
-    auto* panel = new QVBoxLayout();
+    // --- Right: scrollable control panel ---
+    auto* scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setMaximumWidth(280);
+    auto* panelWidget = new QWidget();
+    auto* panel = new QVBoxLayout(panelWidget);
 
     // Import button
     importBtn_ = new QPushButton(tr("导入皮肤"), this);
     panel->addWidget(importBtn_);
 
-    // Username fetch group
+    // Username fetch
     auto* fetchGroup = new QGroupBox(tr("按用户名获取"), this);
     auto* fetchLayout = new QHBoxLayout(fetchGroup);
     usernameEdit_ = new QLineEdit(this);
@@ -58,24 +63,33 @@ void MainWindow::setupUi()
     fetchLayout->addWidget(fetchBtn_);
     panel->addWidget(fetchGroup);
 
-    // Skin fetcher
     skinFetcher_ = new SkinFetcher(this);
     connect(fetchBtn_, &QPushButton::clicked, this, &MainWindow::onFetchByUsername);
     connect(usernameEdit_, &QLineEdit::returnPressed, this, &MainWindow::onFetchByUsername);
     connect(skinFetcher_, &SkinFetcher::finished, this, &MainWindow::onSkinFetched);
     connect(skinFetcher_, &SkinFetcher::error, this, &MainWindow::onSkinFetchError);
 
-    // Light position group
+    // Pose selector
+    auto* poseGroup = new QGroupBox(tr("动作"), this);
+    auto* poseLayout = new QHBoxLayout(poseGroup);
+    poseCombo_ = new QComboBox(this);
+    for (const auto& p : poses_) {
+        poseCombo_->addItem(QString::fromStdString(p.name));
+    }
+    poseLayout->addWidget(poseCombo_);
+    panel->addWidget(poseGroup);
+    connect(poseCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::onPoseChanged);
+
+    // Light position
     auto* lightGroup = new QGroupBox(tr("光源位置"), this);
     auto* lightForm = new QFormLayout(lightGroup);
-
     auto makeSlider = [this](int defaultVal) {
         auto* s = new QSlider(Qt::Horizontal, this);
         s->setRange(-100, 100);
         s->setValue(defaultVal);
         return s;
     };
-
     lightX_ = makeSlider(0);
     lightY_ = makeSlider(40);
     lightZ_ = makeSlider(30);
@@ -84,23 +98,50 @@ void MainWindow::setupUi()
     lightForm->addRow(tr("Z:"), lightZ_);
     panel->addWidget(lightGroup);
 
-    // Bounce count
-    auto* bounceGroup = new QGroupBox(tr("反弹次数"), this);
-    auto* bounceLayout = new QHBoxLayout(bounceGroup);
+    // Render settings
+    auto* renderGroup = new QGroupBox(tr("渲染设置"), this);
+    auto* renderForm = new QFormLayout(renderGroup);
+
     bounceCount_ = new QSpinBox(this);
     bounceCount_->setRange(0, 10);
     bounceCount_->setValue(2);
-    bounceLayout->addWidget(bounceCount_);
-    panel->addWidget(bounceGroup);
+    renderForm->addRow(tr("反弹次数:"), bounceCount_);
 
-    // Samples per pixel (Monte Carlo AA)
-    auto* sppGroup = new QGroupBox(tr("采样数 (AA)"), this);
-    auto* sppLayout = new QHBoxLayout(sppGroup);
     sppCount_ = new QSpinBox(this);
     sppCount_->setRange(1, 256);
     sppCount_->setValue(4);
-    sppLayout->addWidget(sppCount_);
-    panel->addWidget(sppGroup);
+    renderForm->addRow(tr("采样数 (AA):"), sppCount_);
+
+    panel->addWidget(renderGroup);
+
+    // Visual effects
+    auto* fxGroup = new QGroupBox(tr("视觉效果"), this);
+    auto* fxForm = new QFormLayout(fxGroup);
+
+    gradientBgCheck_ = new QCheckBox(tr("径向渐变背景"), this);
+    gradientBgCheck_->setChecked(true);
+    fxForm->addRow(gradientBgCheck_);
+
+    aoCheck_ = new QCheckBox(tr("环境光遮蔽 (AO)"), this);
+    aoCheck_->setChecked(false);
+    fxForm->addRow(aoCheck_);
+
+    aoSamples_ = new QSpinBox(this);
+    aoSamples_->setRange(4, 64);
+    aoSamples_->setValue(16);
+    fxForm->addRow(tr("AO 采样数:"), aoSamples_);
+
+    dofCheck_ = new QCheckBox(tr("景深 (DOF)"), this);
+    dofCheck_->setChecked(false);
+    fxForm->addRow(dofCheck_);
+
+    aperture_ = new QDoubleSpinBox(this);
+    aperture_->setRange(0.0, 5.0);
+    aperture_->setSingleStep(0.1);
+    aperture_->setValue(0.3);
+    fxForm->addRow(tr("光圈大小:"), aperture_);
+
+    panel->addWidget(fxGroup);
 
     // Output resolution
     auto* resGroup = new QGroupBox(tr("输出分辨率"), this);
@@ -115,11 +156,10 @@ void MainWindow::setupUi()
     resForm->addRow(tr("高度:"), outputHeight_);
     panel->addWidget(resGroup);
 
-    // Render & export button
+    // Render & export
     renderBtn_ = new QPushButton(tr("渲染并导出"), this);
     panel->addWidget(renderBtn_);
 
-    // Progress bar (hidden by default)
     progressBar_ = new QProgressBar(this);
     progressBar_->setRange(0, 100);
     progressBar_->setValue(0);
@@ -127,35 +167,31 @@ void MainWindow::setupUi()
     panel->addWidget(progressBar_);
 
     panel->addStretch();
-    mainLayout->addLayout(panel);
+    scrollArea->setWidget(panelWidget);
+    mainLayout->addWidget(scrollArea);
 
-    // --- Connect signals ---
+    // Connections
     connect(importBtn_, &QPushButton::clicked, this, &MainWindow::onImportSkin);
     connect(renderBtn_, &QPushButton::clicked, this, &MainWindow::onRenderExport);
-
     connect(lightX_, &QSlider::valueChanged, this, &MainWindow::onLightPosChanged);
     connect(lightY_, &QSlider::valueChanged, this, &MainWindow::onLightPosChanged);
     connect(lightZ_, &QSlider::valueChanged, this, &MainWindow::onLightPosChanged);
-
     connect(bounceCount_, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &MainWindow::onBounceCountChanged);
 
-    // Show default white model on startup
+    // Default scene
     scene_ = MeshBuilder::buildDefaultScene();
     preview_->setScene(scene_);
 }
 
-// --- Slot implementations (Task 10.2) ---
+// ── Slots ───────────────────────────────────────────────────────────────────
 
 void MainWindow::onImportSkin()
 {
     QString filePath = QFileDialog::getOpenFileName(
         this, tr("导入皮肤文件"), QString(),
         tr("PNG 文件 (*.png);;所有文件 (*)"));
-
-    if (filePath.isEmpty())
-        return;
-
+    if (filePath.isEmpty()) return;
     loadSkinFile(filePath);
 }
 
@@ -193,15 +229,32 @@ void MainWindow::loadSkinFile(const QString& filePath)
         return;
     }
 
-    scene_ = MeshBuilder::buildScene(*result.value);
+    currentSkin_ = *result.value;
+    skinLoaded_ = true;
+    rebuildScene();
+}
+
+void MainWindow::rebuildScene()
+{
+    if (!currentSkin_.has_value()) return;
+
+    int poseIdx = poseCombo_->currentIndex();
+    Pose pose = (poseIdx >= 0 && poseIdx < static_cast<int>(poses_.size()))
+                ? poses_[poseIdx] : Pose{};
+
+    scene_ = MeshBuilder::buildScene(*currentSkin_, pose);
 
     scene_.light.position = Vec3(
         static_cast<float>(lightX_->value()),
         static_cast<float>(lightY_->value()),
         static_cast<float>(lightZ_->value()));
 
-    skinLoaded_ = true;
     preview_->setScene(scene_);
+}
+
+void MainWindow::onPoseChanged(int /*index*/)
+{
+    rebuildScene();
 }
 
 void MainWindow::onRenderExport()
@@ -211,49 +264,42 @@ void MainWindow::onRenderExport()
         return;
     }
 
-    // Choose output file path
     QString outputPath = QFileDialog::getSaveFileName(
         this, tr("保存渲染图像"), QString(),
         tr("PNG 文件 (*.png);;所有文件 (*)"));
-
-    if (outputPath.isEmpty())
-        return;
-
-    // Ensure .png extension
+    if (outputPath.isEmpty()) return;
     if (!outputPath.endsWith(".png", Qt::CaseInsensitive))
         outputPath += ".png";
 
-    // Disable render button to prevent double-click
     renderBtn_->setEnabled(false);
-
-    // Show and reset progress bar
     progressBar_->setValue(0);
     progressBar_->setVisible(true);
 
-    // Build render config from UI values
     RayTracer::Config config;
     config.width = outputWidth_->value();
     config.height = outputHeight_->value();
     config.maxBounces = bounceCountValue_;
     config.samplesPerPixel = sppCount_->value();
     config.tileSize = 32;
-    config.threadCount = 0; // auto-detect
+    config.threadCount = 0;
 
-    // Sync camera from preview so the raytraced output matches the viewport
+    // Visual effects
+    config.gradientBg = gradientBgCheck_->isChecked();
+    config.aoEnabled = aoCheck_->isChecked();
+    config.aoSamples = aoSamples_->value();
+    config.dofEnabled = dofCheck_->isChecked();
+    config.aperture = static_cast<float>(aperture_->value());
+
     scene_.camera = preview_->currentCamera();
 
-    // Capture scene and path for the worker thread
     Scene sceneCopy = scene_;
     std::string outPathStd = outputPath.toStdString();
 
-    // Join any previous render thread
     if (renderThread_.joinable())
         renderThread_.join();
 
-    // Launch rendering in background thread
     renderThread_ = std::thread([this, sceneCopy = std::move(sceneCopy),
                                   config, outPathStd]() {
-        // Render with progress callback that updates UI via queued connection
         Image image = TileRenderer::render(sceneCopy, config,
             [this](int done, int total) {
                 QMetaObject::invokeMethod(this,
@@ -261,10 +307,7 @@ void MainWindow::onRenderExport()
                     Qt::QueuedConnection);
             });
 
-        // Save PNG
         bool ok = ImageWriter::writePNG(image, outPathStd);
-
-        // Notify UI on main thread
         QString path = QString::fromStdString(outPathStd);
         QMetaObject::invokeMethod(this,
             [this, path, ok]() { onRenderFinished(path, ok); },
@@ -295,10 +338,7 @@ void MainWindow::onRenderProgress(int done, int total)
 
 void MainWindow::onRenderFinished(const QString& outputPath, bool success)
 {
-    // Re-enable render button
     renderBtn_->setEnabled(true);
-
-    // Hide progress bar
     progressBar_->setVisible(false);
 
     if (success) {

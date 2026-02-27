@@ -1,13 +1,18 @@
 #include "raytracer/tile_renderer.h"
+#include "raytracer/intersection.h"
 #include "scene/scene.h"
 #include <thread>
 #include <mutex>
 #include <atomic>
 #include <algorithm>
 #include <random>
+#include <cmath>
 #include <stdexcept>
 
-// Static member definition
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 std::vector<TileRenderer::TileError> TileRenderer::errors_;
 
 std::vector<Tile> TileRenderer::generateTiles(int imageWidth, int imageHeight, int tileSize) {
@@ -33,6 +38,36 @@ std::vector<Tile> TileRenderer::generateTiles(int imageWidth, int imageHeight, i
     return tiles;
 }
 
+// Generate a DOF ray using thin-lens model
+static Ray generateDOFRay(const Scene& scene, float u, float v, float aspectRatio,
+                          float aperture, float focusDist,
+                          std::mt19937& rng) {
+    // First generate the pinhole ray to find the focus point
+    Ray pinholeRay = scene.camera.generateRay(u, v, aspectRatio);
+
+    if (aperture < 1e-6f) return pinholeRay;
+
+    Vec3 forward = (scene.camera.target - scene.camera.position).normalize();
+    Vec3 right = forward.cross(scene.camera.up).normalize();
+    Vec3 camUp = right.cross(forward);
+
+    // Focus point along the pinhole ray
+    Vec3 focusPoint = pinholeRay.origin + pinholeRay.direction * focusDist;
+
+    // Random point on lens disk
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    float angle = 2.0f * static_cast<float>(M_PI) * dist(rng);
+    float radius = aperture * std::sqrt(dist(rng));
+    float lensX = radius * std::cos(angle);
+    float lensY = radius * std::sin(angle);
+
+    Vec3 lensOffset = right * lensX + camUp * lensY;
+    Vec3 newOrigin = scene.camera.position + lensOffset;
+    Vec3 newDir = (focusPoint - newOrigin).normalize();
+
+    return Ray(newOrigin, newDir);
+}
+
 void TileRenderer::renderTile(const Tile& tile,
                               const Scene& scene,
                               const RayTracer::Config& config,
@@ -40,24 +75,44 @@ void TileRenderer::renderTile(const Tile& tile,
     float aspectRatio = static_cast<float>(config.width) / static_cast<float>(config.height);
     int spp = std::max(1, config.samplesPerPixel);
 
-    // Per-tile RNG seeded from tile position for reproducibility
     std::mt19937 rng(static_cast<unsigned>(tile.y * config.width + tile.x));
     std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+
+    // Compute focus distance
+    float focusDist = config.focusDistance;
+    if (focusDist <= 0.0f) {
+        focusDist = (scene.camera.target - scene.camera.position).length();
+    }
 
     for (int py = tile.y; py < tile.y + tile.height; ++py) {
         for (int px = tile.x; px < tile.x + tile.width; ++px) {
             Color accum(0.0f, 0.0f, 0.0f, 0.0f);
 
             for (int s = 0; s < spp; ++s) {
-                // Jittered sub-pixel offset for Monte Carlo AA
                 float jx = (spp == 1) ? 0.5f : dist(rng);
                 float jy = (spp == 1) ? 0.5f : dist(rng);
 
                 float u = (static_cast<float>(px) + jx) / static_cast<float>(config.width);
                 float v = (static_cast<float>(py) + jy) / static_cast<float>(config.height);
 
-                Ray ray = scene.camera.generateRay(u, v, aspectRatio);
-                Color c = RayTracer::traceRay(ray, scene, 0, config.maxBounces);
+                Ray ray;
+                if (config.dofEnabled && config.aperture > 1e-6f) {
+                    ray = generateDOFRay(scene, u, v, aspectRatio,
+                                         config.aperture, focusDist, rng);
+                } else {
+                    ray = scene.camera.generateRay(u, v, aspectRatio);
+                }
+
+                Color c = RayTracer::traceRay(ray, scene, 0, config.maxBounces,
+                                              ShadingParams{}, &config);
+
+                // If the ray missed, use the gradient background with proper u,v
+                // (traceRay returns approximate bg for misses; override here)
+                HitResult testHit = intersectScene(ray, scene);
+                if (!testHit.hit) {
+                    c = RayTracer::backgroundColor(scene, u, v, &config);
+                }
+
                 accum.r += c.r;
                 accum.g += c.g;
                 accum.b += c.b;
@@ -74,34 +129,27 @@ void TileRenderer::renderTile(const Tile& tile,
 Image TileRenderer::render(const Scene& scene,
                            const RayTracer::Config& config,
                            std::function<void(int, int)> progressCallback) {
-    // Determine thread count
     int threadCount = config.threadCount;
     if (threadCount <= 0) {
         threadCount = static_cast<int>(std::thread::hardware_concurrency());
         if (threadCount <= 0) threadCount = 1;
     }
 
-    // Generate tiles
     std::vector<Tile> tiles = generateTiles(config.width, config.height, config.tileSize);
     int totalTiles = static_cast<int>(tiles.size());
 
-    // Prepare output image
     Image output(config.width, config.height);
-
-    // Clear errors from previous render
     errors_.clear();
 
     if (totalTiles == 0) {
         return output;
     }
 
-    // Shared state for work distribution
     std::atomic<int> nextTile{0};
     std::atomic<int> completedTiles{0};
     std::mutex progressMutex;
     std::mutex errorMutex;
 
-    // Worker function: grab tiles from the shared counter until done
     auto worker = [&]() {
         while (true) {
             int idx = nextTile.fetch_add(1);
@@ -125,7 +173,6 @@ Image TileRenderer::render(const Scene& scene,
         }
     };
 
-    // Launch worker threads
     std::vector<std::thread> threads;
     int numThreads = std::min(threadCount, totalTiles);
     threads.reserve(numThreads);
@@ -134,7 +181,6 @@ Image TileRenderer::render(const Scene& scene,
         threads.emplace_back(worker);
     }
 
-    // Wait for all threads to finish
     for (auto& t : threads) {
         t.join();
     }
