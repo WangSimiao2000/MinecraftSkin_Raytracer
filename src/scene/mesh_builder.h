@@ -10,7 +10,7 @@ public:
     static Scene buildScene(const SkinData& skin, const Pose& pose = Pose{});
 
     // Build a default white-model scene (no skin imported)
-    static Scene buildDefaultScene();
+    static Scene buildDefaultScene(const Pose& pose = Pose{});
 
     // Build a single box mesh for a body part
     // position: center of the box

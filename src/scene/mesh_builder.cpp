@@ -189,7 +189,7 @@ Scene MeshBuilder::buildScene(const SkinData& skin, const Pose& pose) {
     return scene;
 }
 
-Scene MeshBuilder::buildDefaultScene() {
+Scene MeshBuilder::buildDefaultScene(const Pose& pose) {
     auto whiteTex = []{
         BodyPartTexture t;
         auto make = [](int w, int h) {
@@ -207,5 +207,5 @@ Scene MeshBuilder::buildDefaultScene() {
     skin.rightArm = whiteTex(); skin.leftArm = whiteTex();
     skin.rightLeg = whiteTex(); skin.leftLeg = whiteTex();
 
-    return buildScene(skin);
+    return buildScene(skin, pose);
 }

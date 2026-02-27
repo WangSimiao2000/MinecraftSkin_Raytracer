@@ -236,13 +236,16 @@ void MainWindow::loadSkinFile(const QString& filePath)
 
 void MainWindow::rebuildScene()
 {
-    if (!currentSkin_.has_value()) return;
-
     int poseIdx = poseCombo_->currentIndex();
     Pose pose = (poseIdx >= 0 && poseIdx < static_cast<int>(poses_.size()))
                 ? poses_[poseIdx] : Pose{};
 
-    scene_ = MeshBuilder::buildScene(*currentSkin_, pose);
+    if (currentSkin_.has_value()) {
+        scene_ = MeshBuilder::buildScene(*currentSkin_, pose);
+    } else {
+        // Default white model with pose
+        scene_ = MeshBuilder::buildDefaultScene(pose);
+    }
 
     scene_.light.position = Vec3(
         static_cast<float>(lightX_->value()),
