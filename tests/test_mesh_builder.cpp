@@ -153,7 +153,7 @@ TEST_F(MeshBuilderTest, ProducesExactlySixInnerMeshes) {
 }
 
 // Expected values per body part (order matches buildScene: head, body, rArm, lArm, rLeg, lLeg)
-// After 180° Y-axis rotation, X coordinates are negated (character faces +Z toward camera)
+// Character faces +Z (toward camera). No model rotation applied.
 struct BodyPartExpectation {
     const char* name;
     Vec3 center;
@@ -163,10 +163,10 @@ struct BodyPartExpectation {
 static const BodyPartExpectation kExpected[] = {
     { "Head",     Vec3(0, 28, 0), Vec3(8, 8, 8)   },
     { "Body",     Vec3(0, 18, 0), Vec3(8, 12, 4)   },
-    { "RightArm", Vec3(6, 18, 0), Vec3(4, 12, 4)  },
-    { "LeftArm",  Vec3(-6, 18, 0), Vec3(4, 12, 4) },
-    { "RightLeg", Vec3(2, 6, 0), Vec3(4, 12, 4)   },
-    { "LeftLeg",  Vec3(-2, 6, 0), Vec3(4, 12, 4)  },
+    { "RightArm", Vec3(-6, 18, 0), Vec3(4, 12, 4) },
+    { "LeftArm",  Vec3(6, 18, 0), Vec3(4, 12, 4)  },
+    { "RightLeg", Vec3(-2, 6, 0), Vec3(4, 12, 4)  },
+    { "LeftLeg",  Vec3(2, 6, 0), Vec3(4, 12, 4)   },
 };
 
 static constexpr float kTolerance = 1e-4f;
@@ -199,7 +199,7 @@ TEST_F(MeshBuilderTest, RightArmPosition) {
     AABB box = computeBoundingBox(scene.meshes[2]);
     Vec3 center = bboxCenter(box);
     Vec3 extent = bboxExtent(box);
-    EXPECT_NEAR(center.x, 6.0f, kTolerance)  << "RightArm center X";
+    EXPECT_NEAR(center.x, -6.0f, kTolerance) << "RightArm center X";
     EXPECT_NEAR(center.y, 18.0f, kTolerance) << "RightArm center Y";
     EXPECT_NEAR(center.z, 0.0f, kTolerance)  << "RightArm center Z";
     EXPECT_NEAR(extent.x, 4.0f, kTolerance)  << "RightArm width";
@@ -211,7 +211,7 @@ TEST_F(MeshBuilderTest, LeftArmPosition) {
     AABB box = computeBoundingBox(scene.meshes[3]);
     Vec3 center = bboxCenter(box);
     Vec3 extent = bboxExtent(box);
-    EXPECT_NEAR(center.x, -6.0f, kTolerance) << "LeftArm center X";
+    EXPECT_NEAR(center.x, 6.0f, kTolerance)  << "LeftArm center X";
     EXPECT_NEAR(center.y, 18.0f, kTolerance) << "LeftArm center Y";
     EXPECT_NEAR(center.z, 0.0f, kTolerance)  << "LeftArm center Z";
     EXPECT_NEAR(extent.x, 4.0f, kTolerance)  << "LeftArm width";
@@ -223,7 +223,7 @@ TEST_F(MeshBuilderTest, RightLegPosition) {
     AABB box = computeBoundingBox(scene.meshes[4]);
     Vec3 center = bboxCenter(box);
     Vec3 extent = bboxExtent(box);
-    EXPECT_NEAR(center.x, 2.0f, kTolerance)  << "RightLeg center X";
+    EXPECT_NEAR(center.x, -2.0f, kTolerance) << "RightLeg center X";
     EXPECT_NEAR(center.y, 6.0f, kTolerance)  << "RightLeg center Y";
     EXPECT_NEAR(center.z, 0.0f, kTolerance)  << "RightLeg center Z";
     EXPECT_NEAR(extent.x, 4.0f, kTolerance)  << "RightLeg width";
@@ -235,7 +235,7 @@ TEST_F(MeshBuilderTest, LeftLegPosition) {
     AABB box = computeBoundingBox(scene.meshes[5]);
     Vec3 center = bboxCenter(box);
     Vec3 extent = bboxExtent(box);
-    EXPECT_NEAR(center.x, -2.0f, kTolerance) << "LeftLeg center X";
+    EXPECT_NEAR(center.x, 2.0f, kTolerance)  << "LeftLeg center X";
     EXPECT_NEAR(center.y, 6.0f, kTolerance)  << "LeftLeg center Y";
     EXPECT_NEAR(center.z, 0.0f, kTolerance)  << "LeftLeg center Z";
     EXPECT_NEAR(extent.x, 4.0f, kTolerance)  << "LeftLeg width";

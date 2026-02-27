@@ -28,14 +28,15 @@ static void computeAABB(const Mesh& mesh, Vec3& boxMin, Vec3& boxMax) {
 
 // Identify which face of the box was hit based on the axis and sign
 // of the tmin component, then find the corresponding texture from the mesh triangles.
-// Face convention (matching mesh_builder.cpp):
-//   face 0,1   = front  (-Z), normal (0,0,-1)
-//   face 2,3   = back   (+Z), normal (0,0,1)
+// Face convention (matching mesh_builder.cpp addFace order):
+//   face 0,1   = back   (-Z), normal (0,0,-1)
+//   face 2,3   = front  (+Z), normal (0,0,1)
 //   face 4,5   = left   (+X), normal (1,0,0)
 //   face 6,7   = right  (-X), normal (-1,0,0)
 //   face 8,9   = top    (+Y), normal (0,1,0)
 //   face 10,11 = bottom (-Y), normal (0,-1,0)
 //
+// Character faces +Z (toward camera at default position).
 // The "hit axis" is the axis whose slab produced tmin.
 // The sign tells us which side of that axis was hit.
 
@@ -52,21 +53,21 @@ static FaceInfo determineFace(const Mesh& mesh, int hitAxis, bool hitNegSide) {
     // hitNegSide: true means ray hit the min side of that axis
     if (hitAxis == 2) {
         if (hitNegSide) {
-            // Hit the -Z face = front face, triangles 0,1
+            // Hit the -Z face = back face, triangles 0,1
             info.normal = Vec3(0, 0, -1);
             info.faceIndex = 0;
         } else {
-            // Hit the +Z face = back face, triangles 2,3
+            // Hit the +Z face = front face, triangles 2,3
             info.normal = Vec3(0, 0, 1);
             info.faceIndex = 1;
         }
     } else if (hitAxis == 0) {
         if (!hitNegSide) {
-            // Hit the +X face = left face, triangles 4,5
+            // Hit the +X face = left face (character's left), triangles 4,5
             info.normal = Vec3(1, 0, 0);
             info.faceIndex = 2;
         } else {
-            // Hit the -X face = right face, triangles 6,7
+            // Hit the -X face = right face (character's right), triangles 6,7
             info.normal = Vec3(-1, 0, 0);
             info.faceIndex = 3;
         }
@@ -105,24 +106,19 @@ static void computeFaceUV(const Vec3& hitPoint, const Vec3& boxMin, const Vec3& 
     float sz = (size.z > 1e-8f) ? size.z : 1.0f;
 
     if (hitAxis == 2) {
-        // Front (-Z) or Back (+Z) face
+        // Back (-Z) or Front (+Z) face
         // U maps along X, V maps along Y (inverted: top=0, bottom=1)
         float localX = (hitPoint.x - boxMin.x) / sx;
         float localY = (hitPoint.y - boxMin.y) / sy;
         if (hitNegSide) {
-            // Front face (-Z): looking from -Z, left=+X, right=-X
-            // In Minecraft skin, front face U goes left-to-right as viewed
-            // mesh_builder: front face vertices are v010(top-left), v110(top-right), v100(bot-right), v000(bot-left)
-            // where v010 = (-hw, +hh, -hd), v110 = (+hw, +hh, -hd)
-            // So U goes from -X to +X = localX, V goes from +Y to -Y = 1-localY
-            u = localX;
+            // Back face (-Z): looking from -Z toward +Z
+            // U goes from +X to -X (character's left to right as seen from behind)
+            u = 1.0f - localX;
             v = 1.0f - localY;
         } else {
-            // Back face (+Z): looking from +Z, left=-X (from viewer's perspective)
-            // mesh_builder: back face vertices are v111(top-left), v011(top-right), v001(bot-right), v101(bot-left)
-            // v111 = (+hw, +hh, +hd), v011 = (-hw, +hh, +hd)
-            // So U goes from +X to -X = 1-localX, V goes from +Y to -Y = 1-localY
-            u = 1.0f - localX;
+            // Front face (+Z): looking from +Z toward -Z (camera default)
+            // U goes from -X to +X (left to right as viewer sees it)
+            u = localX;
             v = 1.0f - localY;
         }
     } else if (hitAxis == 0) {
@@ -131,18 +127,14 @@ static void computeFaceUV(const Vec3& hitPoint, const Vec3& boxMin, const Vec3& 
         float localZ = (hitPoint.z - boxMin.z) / sz;
         float localY = (hitPoint.y - boxMin.y) / sy;
         if (!hitNegSide) {
-            // Left face (+X): looking from +X
-            // mesh_builder: left face vertices are v110(top-left), v111(top-right), v101(bot-right), v100(bot-left)
-            // v110 = (+hw, +hh, -hd), v111 = (+hw, +hh, +hd)
-            // So U goes from -Z to +Z = localZ, V goes from +Y to -Y = 1-localY
-            u = localZ;
+            // Left face (+X): character's left side, looking from +X
+            // U=0 at front (+Z), U=1 at back (-Z)
+            u = 1.0f - localZ;
             v = 1.0f - localY;
         } else {
-            // Right face (-X): looking from -X
-            // mesh_builder: right face vertices are v011(top-left), v010(top-right), v000(bot-right), v001(bot-left)
-            // v011 = (-hw, +hh, +hd), v010 = (-hw, +hh, -hd)
-            // So U goes from +Z to -Z = 1-localZ, V goes from +Y to -Y = 1-localY
-            u = 1.0f - localZ;
+            // Right face (-X): character's right side, looking from -X
+            // U=1 at front (+Z), U=0 at back (-Z)
+            u = localZ;
             v = 1.0f - localY;
         }
     } else { // hitAxis == 1
@@ -152,18 +144,13 @@ static void computeFaceUV(const Vec3& hitPoint, const Vec3& boxMin, const Vec3& 
         float localZ = (hitPoint.z - boxMin.z) / sz;
         if (!hitNegSide) {
             // Top face (+Y): looking from +Y down
-            // mesh_builder: top face vertices are v011(front-left), v111(front-right), v110(back-right), v010(back-left)
-            // v011 = (-hw, +hh, +hd), v111 = (+hw, +hh, +hd)
-            // So U goes from -X to +X = localX, V goes from +Z to -Z = 1-localZ
-            u = localX;
-            v = 1.0f - localZ;
-        } else {
-            // Bottom face (-Y): looking from -Y up
-            // mesh_builder: bottom face vertices are v000(front-left), v100(front-right), v101(back-right), v001(back-left)
-            // v000 = (-hw, -hh, -hd), v100 = (+hw, -hh, -hd)
-            // So U goes from -X to +X = localX, V goes from -Z to +Z = localZ
+            // Front of character is +Z, V=1 at front
             u = localX;
             v = localZ;
+        } else {
+            // Bottom face (-Y): looking from -Y up
+            u = localX;
+            v = 1.0f - localZ;
         }
     }
 

@@ -71,6 +71,8 @@ Mesh MeshBuilder::buildBox(const BodyPartTexture& tex,
     mesh.isOuterLayer = (offset > 0.0f);
     mesh.triangles.reserve(12);
 
+    // Face mapping: character faces +Z (toward camera).
+    // +Z = front, -Z = back, +X = character's left, -X = character's right
     mesh.ownedTextures[0] = tex.front;
     mesh.ownedTextures[1] = tex.back;
     mesh.ownedTextures[2] = tex.left;
@@ -109,12 +111,13 @@ Mesh MeshBuilder::buildBox(const BodyPartTexture& tex,
         mesh.triangles.push_back(t2);
     };
 
-    addFace(v010, v110, v100, v000, Vec3(0,0,-1), &mesh.ownedTextures[0]);
-    addFace(v111, v011, v001, v101, Vec3(0,0,1),  &mesh.ownedTextures[1]);
-    addFace(v110, v111, v101, v100, Vec3(1,0,0),  &mesh.ownedTextures[2]);
-    addFace(v011, v010, v000, v001, Vec3(-1,0,0), &mesh.ownedTextures[3]);
-    addFace(v011, v111, v110, v010, Vec3(0,1,0),  &mesh.ownedTextures[4]);
-    addFace(v000, v100, v101, v001, Vec3(0,-1,0), &mesh.ownedTextures[5]);
+    // -Z face = back (away from camera), +Z face = front (toward camera)
+    addFace(v010, v110, v100, v000, Vec3(0,0,-1), &mesh.ownedTextures[1]);  // back
+    addFace(v111, v011, v001, v101, Vec3(0,0,1),  &mesh.ownedTextures[0]);  // front
+    addFace(v110, v111, v101, v100, Vec3(1,0,0),  &mesh.ownedTextures[2]);  // left (+X = char's left)
+    addFace(v011, v010, v000, v001, Vec3(-1,0,0), &mesh.ownedTextures[3]);  // right (-X = char's right)
+    addFace(v011, v111, v110, v010, Vec3(0,1,0),  &mesh.ownedTextures[4]);  // top
+    addFace(v000, v100, v101, v001, Vec3(0,-1,0), &mesh.ownedTextures[5]);  // bottom
 
     return mesh;
 }
@@ -172,17 +175,6 @@ Scene MeshBuilder::buildScene(const SkinData& skin, const Pose& pose) {
             if (!isFullyTransparent(*part.outer)) {
                 scene.meshes.push_back(buildBox(*part.outer, part.position, part.size, 0.5f));
             }
-        }
-    }
-
-    // Rotate entire model 180° around Y axis so the face points toward +Z (toward camera)
-    // Y-axis 180° rotation: (x, y, z) → (-x, y, -z), normal likewise
-    for (auto& mesh : scene.meshes) {
-        for (auto& tri : mesh.triangles) {
-            tri.v0.x = -tri.v0.x; tri.v0.z = -tri.v0.z;
-            tri.v1.x = -tri.v1.x; tri.v1.z = -tri.v1.z;
-            tri.v2.x = -tri.v2.x; tri.v2.z = -tri.v2.z;
-            tri.normal.x = -tri.normal.x; tri.normal.z = -tri.normal.z;
         }
     }
 
