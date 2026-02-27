@@ -61,6 +61,9 @@ private:
     QSpinBox* aoSamples_;
     QCheckBox* dofCheck_;
     QDoubleSpinBox* aperture_;
+    QCheckBox* softShadowCheck_;
+    QSpinBox* shadowSamples_;
+    QDoubleSpinBox* lightRadius_;
     QCheckBox* gradientBgCheck_;
     QDoubleSpinBox* gradientScale_;
     QPushButton* bgCenterColorBtn_;

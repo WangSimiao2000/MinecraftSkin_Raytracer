@@ -319,6 +319,21 @@ void MainWindow::setupUi()
     aperture_->setValue(0.3);
     fxForm->addRow(tr("光圈大小:"), aperture_);
 
+    softShadowCheck_ = new QCheckBox(tr("软阴影"), this);
+    softShadowCheck_->setChecked(true);
+    fxForm->addRow(softShadowCheck_);
+
+    shadowSamples_ = new QSpinBox(this);
+    shadowSamples_->setRange(1, 64);
+    shadowSamples_->setValue(8);
+    fxForm->addRow(tr("阴影采样:"), shadowSamples_);
+
+    lightRadius_ = new QDoubleSpinBox(this);
+    lightRadius_->setRange(0.0, 20.0);
+    lightRadius_->setSingleStep(0.5);
+    lightRadius_->setValue(3.0);
+    fxForm->addRow(tr("光源半径:"), lightRadius_);
+
     panel->addWidget(fxGroup);
 
     // Output resolution
@@ -351,7 +366,7 @@ void MainWindow::setupUi()
     // Disable wheel-to-change on all spinboxes and combos
     for (auto* w : std::initializer_list<QWidget*>{
             bounceCount_, sppCount_, aoSamples_, outputWidth_, outputHeight_,
-            gradientScale_, aperture_, poseCombo_}) {
+            gradientScale_, aperture_, shadowSamples_, lightRadius_, poseCombo_}) {
         w->setFocusPolicy(Qt::StrongFocus);
         w->installEventFilter(wheelFilter);
     }
@@ -447,6 +462,7 @@ void MainWindow::rebuildScene()
         static_cast<float>(lightZ_->value()));
     scene_.light.color = Color(lightColor_.redF(), lightColor_.greenF(),
                                lightColor_.blueF(), 1.0f);
+    scene_.light.radius = static_cast<float>(lightRadius_->value());
 
     preview_->setScene(scene_);
 }
@@ -496,6 +512,8 @@ void MainWindow::onRenderExport()
     config.aoSamples = aoSamples_->value();
     config.dofEnabled = dofCheck_->isChecked();
     config.aperture = static_cast<float>(aperture_->value());
+    config.softShadows = softShadowCheck_->isChecked();
+    config.shadowSamples = shadowSamples_->value();
 
     scene_.camera = preview_->currentCamera();
 
@@ -530,6 +548,7 @@ void MainWindow::onLightPosChanged()
     scene_.light.position = pos;
     scene_.light.color = Color(lightColor_.redF(), lightColor_.greenF(),
                                lightColor_.blueF(), 1.0f);
+    scene_.light.radius = static_cast<float>(lightRadius_->value());
     preview_->setLightPosition(pos);
 }
 
@@ -581,6 +600,9 @@ void MainWindow::setControlsEnabled(bool enabled)
     aoSamples_->setEnabled(enabled);
     dofCheck_->setEnabled(enabled);
     aperture_->setEnabled(enabled);
+    softShadowCheck_->setEnabled(enabled);
+    shadowSamples_->setEnabled(enabled);
+    lightRadius_->setEnabled(enabled);
     renderBtn_->setEnabled(enabled);
     preview_->setInteractionEnabled(enabled);
 }

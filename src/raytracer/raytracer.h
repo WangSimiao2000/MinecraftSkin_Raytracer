@@ -15,6 +15,10 @@ public:
         int tileSize = 32;
         int threadCount = 0; // 0 = auto
 
+        // Soft shadows (area light)
+        bool softShadows = true;
+        int shadowSamples = 8;   // area light samples
+
         // Ambient occlusion
         bool aoEnabled = false;
         int aoSamples = 8;        // hemisphere samples per hit

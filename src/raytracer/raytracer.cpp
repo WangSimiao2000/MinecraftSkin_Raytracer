@@ -102,7 +102,19 @@ Color RayTracer::traceRay(const Ray& ray, const Scene& scene,
     }
 
     Vec3 viewDir = (ray.origin - hit.point).normalize();
-    Color shadedColor = shade(hit, viewDir, scene.light, scene, params);
+    Color shadedColor;
+
+    // Compute soft shadow factor if enabled
+    float shadowFactor = -1.0f;
+    if (config && config->softShadows && config->shadowSamples > 1) {
+        unsigned int shadowSeed = static_cast<unsigned int>(
+            hit.point.x * 12345.0f + hit.point.y * 67890.0f + hit.point.z * 11111.0f
+            + static_cast<float>(depth) * 99999.0f);
+        shadowFactor = computeSoftShadow(hit.point, hit.normal, scene.light,
+                                         scene, config->shadowSamples, shadowSeed);
+    }
+
+    shadedColor = shade(hit, viewDir, scene.light, scene, params, shadowFactor);
     float originalAlpha = shadedColor.a;
 
     // Ambient occlusion

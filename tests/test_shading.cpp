@@ -76,6 +76,7 @@ TEST(ShadingTest, AmbientOnlyWhenLightBehindSurface) {
     Vec3 viewDir(0, 0, 1);
 
     ShadingParams params;
+    params.kd = 0.7f; params.ks = 0.3f; params.ambient = 0.1f; params.shininess = 32.0f;
     Color result = shade(hit, viewDir, scene.light, scene, params);
 
     // Only ambient: 0.1 * (1,1,1)
@@ -93,6 +94,7 @@ TEST(ShadingTest, DiffuseAndSpecularWithDirectLight) {
     Vec3 viewDir(0, 1, 0); // looking down from above
 
     ShadingParams params;
+    params.kd = 0.7f; params.ks = 0.3f; params.ambient = 0.1f; params.shininess = 32.0f;
     Color result = shade(hit, viewDir, scene.light, scene, params);
 
     // N = (0,1,0), L = (0,1,0), V = (0,1,0)
@@ -117,6 +119,7 @@ TEST(ShadingTest, DiffuseOnlyAtGrazingAngle) {
     Vec3 viewDir(0, 1, 0);
 
     ShadingParams params;
+    params.kd = 0.7f; params.ks = 0.3f; params.ambient = 0.1f; params.shininess = 32.0f;
     Color result = shade(hit, viewDir, scene.light, scene, params);
 
     // L = (1,0,0), N = (0,1,0), dot(N,L) = 0 → diffuse = 0
@@ -137,6 +140,7 @@ TEST(ShadingTest, InShadowReturnsAmbientOnly) {
     Vec3 viewDir(0, 1, 0);
 
     ShadingParams params;
+    params.kd = 0.7f; params.ks = 0.3f; params.ambient = 0.1f; params.shininess = 32.0f;
     Color result = shade(hit, viewDir, scene.light, scene, params);
 
     // Should be ambient only since blocker is in the way

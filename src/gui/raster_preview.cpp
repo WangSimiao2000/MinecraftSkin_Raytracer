@@ -52,13 +52,13 @@ void main() {
     vec3 V = normalize(uViewPos - vWorldPos);
     vec3 H = normalize(L + V);
 
-    float ambient = 0.15;
+    float ambient = 0.20;
     float diff = max(dot(N, L), 0.0);
-    float spec = pow(max(dot(N, H), 0.0), 32.0);
+    float spec = pow(max(dot(N, H), 0.0), 16.0);
 
     vec3 color = ambient * texColor.rgb
-               + 0.7 * diff * texColor.rgb
-               + 0.3 * spec * vec3(1.0);
+               + 0.75 * diff * texColor.rgb
+               + 0.15 * spec * vec3(1.0);
 
     FragColor = vec4(color, texColor.a);
 }

@@ -11,6 +11,7 @@ struct Light {
     Vec3 position;
     Color color;
     float intensity = 1.0f;
+    float radius = 3.0f;  // 面光源半径（用于软阴影）
 };
 
 // 相机
