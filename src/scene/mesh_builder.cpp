@@ -27,9 +27,8 @@ static Vec3 rotateAroundPivot(const Vec3& point, const Vec3& pivot,
     Vec3 p = point - pivot;
 
     // Rotate around X axis (pitch: forward/backward)
-    // Negate angle so positive rotX swings toward -Z (toward camera = visual "forward")
     if (std::fabs(rotXDeg) > 0.01f) {
-        float rad = -rotXDeg * static_cast<float>(M_PI) / 180.0f;
+        float rad = rotXDeg * static_cast<float>(M_PI) / 180.0f;
         float cosA = std::cos(rad);
         float sinA = std::sin(rad);
         float newY = p.y * cosA - p.z * sinA;
@@ -173,6 +172,17 @@ Scene MeshBuilder::buildScene(const SkinData& skin, const Pose& pose) {
             if (!isFullyTransparent(*part.outer)) {
                 scene.meshes.push_back(buildBox(*part.outer, part.position, part.size, 0.5f));
             }
+        }
+    }
+
+    // Rotate entire model 180° around Y axis so the face points toward +Z (toward camera)
+    // Y-axis 180° rotation: (x, y, z) → (-x, y, -z), normal likewise
+    for (auto& mesh : scene.meshes) {
+        for (auto& tri : mesh.triangles) {
+            tri.v0.x = -tri.v0.x; tri.v0.z = -tri.v0.z;
+            tri.v1.x = -tri.v1.x; tri.v1.z = -tri.v1.z;
+            tri.v2.x = -tri.v2.x; tri.v2.z = -tri.v2.z;
+            tri.normal.x = -tri.normal.x; tri.normal.z = -tri.normal.z;
         }
     }
 
