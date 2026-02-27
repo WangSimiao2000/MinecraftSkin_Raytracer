@@ -10,12 +10,30 @@
 #include <QMetaObject>
 #include <QScrollArea>
 #include <QColorDialog>
+#include <QApplication>
 
 #include "skin/skin_parser.h"
 #include "skin/skin_fetcher.h"
 #include "scene/mesh_builder.h"
 #include "raytracer/tile_renderer.h"
 #include "output/image_writer.h"
+
+// Event filter that blocks wheel events on unfocused widgets
+class NoScrollWheelFilter : public QObject {
+public:
+    using QObject::QObject;
+protected:
+    bool eventFilter(QObject* obj, QEvent* event) override {
+        if (event->type() == QEvent::Wheel) {
+            auto* w = qobject_cast<QWidget*>(obj);
+            if (w && !w->hasFocus()) {
+                event->ignore();
+                return true;
+            }
+        }
+        return QObject::eventFilter(obj, event);
+    }
+};
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -34,6 +52,106 @@ MainWindow::~MainWindow()
 
 void MainWindow::setupUi()
 {
+    // ── Flat UI stylesheet ──
+    qApp->setStyleSheet(R"(
+        QMainWindow, QWidget {
+            background-color: #2b2b2b;
+            color: #d4d4d4;
+            font-size: 13px;
+        }
+        QGroupBox {
+            border: 1px solid #444;
+            border-radius: 4px;
+            margin-top: 8px;
+            padding: 10px 6px 6px 6px;
+            font-weight: bold;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0 4px;
+        }
+        QPushButton {
+            background-color: #3c3c3c;
+            border: 1px solid #555;
+            border-radius: 3px;
+            padding: 5px 12px;
+            min-height: 22px;
+        }
+        QPushButton:hover { background-color: #484848; }
+        QPushButton:pressed { background-color: #2a2a2a; }
+        QPushButton:disabled { color: #666; background-color: #333; }
+        QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+            background-color: #353535;
+            border: 1px solid #555;
+            border-radius: 3px;
+            padding: 3px 6px;
+            min-height: 20px;
+            selection-background-color: #4a6a8a;
+        }
+        QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+            border: 1px solid #6a9fd8;
+        }
+        QComboBox::drop-down {
+            border: none;
+            width: 20px;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #353535;
+            border: 1px solid #555;
+            selection-background-color: #4a6a8a;
+        }
+        QSlider::groove:horizontal {
+            height: 4px;
+            background: #444;
+            border-radius: 2px;
+        }
+        QSlider::handle:horizontal {
+            background: #6a9fd8;
+            width: 14px;
+            height: 14px;
+            margin: -5px 0;
+            border-radius: 7px;
+        }
+        QSlider::handle:horizontal:hover { background: #7db4e8; }
+        QCheckBox { spacing: 6px; }
+        QCheckBox::indicator {
+            width: 16px; height: 16px;
+            border: 1px solid #555;
+            border-radius: 3px;
+            background-color: #353535;
+        }
+        QCheckBox::indicator:checked {
+            background-color: #4a6a8a;
+            border-color: #6a9fd8;
+        }
+        QProgressBar {
+            border: 1px solid #444;
+            border-radius: 3px;
+            text-align: center;
+            background-color: #353535;
+            height: 18px;
+        }
+        QProgressBar::chunk {
+            background-color: #4a6a8a;
+            border-radius: 2px;
+        }
+        QScrollArea { border: none; }
+        QScrollBar:vertical {
+            background: #2b2b2b;
+            width: 8px;
+        }
+        QScrollBar::handle:vertical {
+            background: #555;
+            border-radius: 4px;
+            min-height: 30px;
+        }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+    )");
+
+    // Wheel event filter — blocks scroll on unfocused spinboxes/combos
+    auto* wheelFilter = new NoScrollWheelFilter(this);
+
     auto* central = new QWidget(this);
     setCentralWidget(central);
     auto* mainLayout = new QHBoxLayout(central);
@@ -229,6 +347,14 @@ void MainWindow::setupUi()
     panel->addStretch();
     scrollArea->setWidget(panelWidget);
     mainLayout->addWidget(scrollArea);
+
+    // Disable wheel-to-change on all spinboxes and combos
+    for (auto* w : std::initializer_list<QWidget*>{
+            bounceCount_, sppCount_, aoSamples_, outputWidth_, outputHeight_,
+            gradientScale_, aperture_, poseCombo_}) {
+        w->setFocusPolicy(Qt::StrongFocus);
+        w->installEventFilter(wheelFilter);
+    }
 
     // Connections
     connect(importBtn_, &QPushButton::clicked, this, &MainWindow::onImportSkin);
