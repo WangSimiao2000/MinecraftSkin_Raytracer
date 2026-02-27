@@ -6,10 +6,13 @@
 #include <QPushButton>
 #include <QProgressBar>
 #include <QLabel>
+#include <QLineEdit>
 #include <thread>
 
 #include "gui/raster_preview.h"
 #include "scene/scene.h"
+
+class SkinFetcher;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -20,6 +23,9 @@ public:
 
 private slots:
     void onImportSkin();
+    void onFetchByUsername();
+    void onSkinFetched(const QString& filePath);
+    void onSkinFetchError(const QString& message);
     void onRenderExport();
     void onLightPosChanged();
     void onBounceCountChanged(int value);
@@ -28,6 +34,7 @@ private slots:
 
 private:
     void setupUi();
+    void loadSkinFile(const QString& filePath);
 
     RasterPreview* preview_;
     QSlider* lightX_;
@@ -38,8 +45,11 @@ private:
     QSpinBox* outputWidth_;
     QSpinBox* outputHeight_;
     QPushButton* importBtn_;
+    QLineEdit* usernameEdit_;
+    QPushButton* fetchBtn_;
     QPushButton* renderBtn_;
     QProgressBar* progressBar_;
+    SkinFetcher* skinFetcher_;
     Scene scene_;
     bool skinLoaded_ = false;
     int bounceCountValue_ = 2;

@@ -27,6 +27,7 @@ target_link_libraries(mcskin_core PUBLIC
 # ── GUI executable ───────────────────────────────────────────────────────────
 set(GUI_SOURCES
     main.cpp
+    skin/skin_fetcher.cpp
     gui/raster_preview.cpp
     gui/main_window.cpp
 )
@@ -38,4 +39,5 @@ target_link_libraries(mcskin_raytracer PRIVATE
     Qt6::Widgets
     Qt6::OpenGL
     Qt6::OpenGLWidgets
+    Qt6::Network
 )

@@ -10,6 +10,7 @@
 #include <QMetaObject>
 
 #include "skin/skin_parser.h"
+#include "skin/skin_fetcher.h"
 #include "scene/mesh_builder.h"
 #include "raytracer/tile_renderer.h"
 #include "output/image_writer.h"
@@ -46,6 +47,23 @@ void MainWindow::setupUi()
     // Import button
     importBtn_ = new QPushButton(tr("导入皮肤"), this);
     panel->addWidget(importBtn_);
+
+    // Username fetch group
+    auto* fetchGroup = new QGroupBox(tr("按用户名获取"), this);
+    auto* fetchLayout = new QHBoxLayout(fetchGroup);
+    usernameEdit_ = new QLineEdit(this);
+    usernameEdit_->setPlaceholderText(tr("输入正版用户名"));
+    fetchBtn_ = new QPushButton(tr("获取"), this);
+    fetchLayout->addWidget(usernameEdit_);
+    fetchLayout->addWidget(fetchBtn_);
+    panel->addWidget(fetchGroup);
+
+    // Skin fetcher
+    skinFetcher_ = new SkinFetcher(this);
+    connect(fetchBtn_, &QPushButton::clicked, this, &MainWindow::onFetchByUsername);
+    connect(usernameEdit_, &QLineEdit::returnPressed, this, &MainWindow::onFetchByUsername);
+    connect(skinFetcher_, &SkinFetcher::finished, this, &MainWindow::onSkinFetched);
+    connect(skinFetcher_, &SkinFetcher::error, this, &MainWindow::onSkinFetchError);
 
     // Light position group
     auto* lightGroup = new QGroupBox(tr("光源位置"), this);
@@ -138,6 +156,37 @@ void MainWindow::onImportSkin()
     if (filePath.isEmpty())
         return;
 
+    loadSkinFile(filePath);
+}
+
+void MainWindow::onFetchByUsername()
+{
+    QString username = usernameEdit_->text().trimmed();
+    if (username.isEmpty()) {
+        QMessageBox::warning(this, tr("提示"), tr("请输入用户名"));
+        return;
+    }
+    fetchBtn_->setEnabled(false);
+    fetchBtn_->setText(tr("获取中..."));
+    skinFetcher_->fetch(username);
+}
+
+void MainWindow::onSkinFetched(const QString& filePath)
+{
+    fetchBtn_->setEnabled(true);
+    fetchBtn_->setText(tr("获取"));
+    loadSkinFile(filePath);
+}
+
+void MainWindow::onSkinFetchError(const QString& message)
+{
+    fetchBtn_->setEnabled(true);
+    fetchBtn_->setText(tr("获取"));
+    QMessageBox::warning(this, tr("获取失败"), message);
+}
+
+void MainWindow::loadSkinFile(const QString& filePath)
+{
     auto result = SkinParser::parse(filePath.toStdString());
     if (!result.isOk()) {
         QMessageBox::warning(this, tr("导入失败"), QString::fromStdString(*result.error));
@@ -146,7 +195,6 @@ void MainWindow::onImportSkin()
 
     scene_ = MeshBuilder::buildScene(*result.value);
 
-    // Apply current light slider values to the scene
     scene_.light.position = Vec3(
         static_cast<float>(lightX_->value()),
         static_cast<float>(lightY_->value()),

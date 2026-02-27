@@ -11,7 +11,7 @@ set(CMAKE_AUTOUIC ON)
 option(BUILD_TESTS "Build unit tests" ON)
 
 # ── Qt6 ──────────────────────────────────────────────────────────────────────
-find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGL OpenGLWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGL OpenGLWidgets Network)
 
 # ── GLM ──────────────────────────────────────────────────────────────────────
 find_package(glm REQUIRED)
