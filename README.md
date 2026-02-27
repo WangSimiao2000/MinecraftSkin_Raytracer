@@ -5,6 +5,7 @@ Minecraft 皮肤光线追踪渲染器 — 基于纯 CPU 软件光线追踪的桌
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)
 ![Qt6](https://img.shields.io/badge/Qt-6-green)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
+![screenshot](docs/screenshot.png)
 
 ## 功能
 
