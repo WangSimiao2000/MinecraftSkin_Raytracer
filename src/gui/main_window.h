@@ -65,15 +65,17 @@ private:
     QDoubleSpinBox* gradientScale_;
     QPushButton* bgCenterColorBtn_;
     QPushButton* bgEdgeColorBtn_;
-    QColor bgCenterColor_{89, 115, 166};  // matches Config default
-    QColor bgEdgeColor_{20, 20, 31};
+    QColor bgCenterColor_{232, 228, 220};  // Morandi warm white
+    QColor bgEdgeColor_{142, 160, 180};    // Morandi muted blue
     QPushButton* renderBtn_;
     QProgressBar* progressBar_;
+    QPushButton* lightColorBtn_;
+    QColor lightColor_{255, 255, 255};
     SkinFetcher* skinFetcher_;
     Scene scene_;
     std::optional<SkinData> currentSkin_;
     std::vector<Pose> poses_;
     bool skinLoaded_ = false;
-    int bounceCountValue_ = 2;
+    int bounceCountValue_ = 4;
     std::thread renderThread_;
 };

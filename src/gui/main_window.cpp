@@ -83,7 +83,7 @@ void MainWindow::setupUi()
             this, &MainWindow::onPoseChanged);
 
     // Light position
-    auto* lightGroup = new QGroupBox(tr("光源位置"), this);
+    auto* lightGroup = new QGroupBox(tr("光源"), this);
     auto* lightForm = new QFormLayout(lightGroup);
     auto makeSlider = [this](int defaultVal) {
         auto* s = new QSlider(Qt::Horizontal, this);
@@ -97,6 +97,24 @@ void MainWindow::setupUi()
     lightForm->addRow(tr("X:"), lightX_);
     lightForm->addRow(tr("Y:"), lightY_);
     lightForm->addRow(tr("Z:"), lightZ_);
+
+    lightColorBtn_ = new QPushButton(this);
+    auto setButtonColor = [](QPushButton* btn, const QColor& color) {
+        btn->setStyleSheet(
+            QString("background-color: %1; border: 1px solid #888; min-height: 20px;")
+                .arg(color.name()));
+        btn->setText(color.name());
+    };
+    setButtonColor(lightColorBtn_, lightColor_);
+    lightForm->addRow(tr("颜色:"), lightColorBtn_);
+    connect(lightColorBtn_, &QPushButton::clicked, this, [this, setButtonColor]() {
+        QColor c = QColorDialog::getColor(lightColor_, this, tr("选择光照颜色"));
+        if (c.isValid()) {
+            lightColor_ = c;
+            setButtonColor(lightColorBtn_, c);
+            onLightPosChanged();
+        }
+    });
     panel->addWidget(lightGroup);
 
     // Render settings
@@ -105,12 +123,12 @@ void MainWindow::setupUi()
 
     bounceCount_ = new QSpinBox(this);
     bounceCount_->setRange(0, 10);
-    bounceCount_->setValue(2);
+    bounceCount_->setValue(4);
     renderForm->addRow(tr("反弹次数:"), bounceCount_);
 
     sppCount_ = new QSpinBox(this);
     sppCount_->setRange(1, 256);
-    sppCount_->setValue(4);
+    sppCount_->setValue(64);
     renderForm->addRow(tr("采样数 (AA):"), sppCount_);
 
     panel->addWidget(renderGroup);
@@ -128,13 +146,6 @@ void MainWindow::setupUi()
     gradientScale_->setSingleStep(0.1);
     gradientScale_->setValue(1.0);
     fxForm->addRow(tr("渐变范围:"), gradientScale_);
-
-    auto setButtonColor = [](QPushButton* btn, const QColor& color) {
-        btn->setStyleSheet(
-            QString("background-color: %1; border: 1px solid #888; min-height: 20px;")
-                .arg(color.name()));
-        btn->setText(color.name());
-    };
 
     bgCenterColorBtn_ = new QPushButton(this);
     setButtonColor(bgCenterColorBtn_, bgCenterColor_);
@@ -185,10 +196,10 @@ void MainWindow::setupUi()
     auto* resForm = new QFormLayout(resGroup);
     outputWidth_ = new QSpinBox(this);
     outputWidth_->setRange(64, 4096);
-    outputWidth_->setValue(800);
+    outputWidth_->setValue(1920);
     outputHeight_ = new QSpinBox(this);
     outputHeight_->setRange(64, 4096);
-    outputHeight_->setValue(600);
+    outputHeight_->setValue(1080);
     resForm->addRow(tr("宽度:"), outputWidth_);
     resForm->addRow(tr("高度:"), outputHeight_);
     panel->addWidget(resGroup);
@@ -288,6 +299,8 @@ void MainWindow::rebuildScene()
         static_cast<float>(lightX_->value()),
         static_cast<float>(lightY_->value()),
         static_cast<float>(lightZ_->value()));
+    scene_.light.color = Color(lightColor_.redF(), lightColor_.greenF(),
+                               lightColor_.blueF(), 1.0f);
 
     preview_->setScene(scene_);
 }
@@ -369,6 +382,8 @@ void MainWindow::onLightPosChanged()
              static_cast<float>(lightY_->value()),
              static_cast<float>(lightZ_->value()));
     scene_.light.position = pos;
+    scene_.light.color = Color(lightColor_.redF(), lightColor_.greenF(),
+                               lightColor_.blueF(), 1.0f);
     preview_->setLightPosition(pos);
 }
 
@@ -407,6 +422,7 @@ void MainWindow::setControlsEnabled(bool enabled)
     lightX_->setEnabled(enabled);
     lightY_->setEnabled(enabled);
     lightZ_->setEnabled(enabled);
+    lightColorBtn_->setEnabled(enabled);
     bounceCount_->setEnabled(enabled);
     sppCount_->setEnabled(enabled);
     outputWidth_->setEnabled(enabled);

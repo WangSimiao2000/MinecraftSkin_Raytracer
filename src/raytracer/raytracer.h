@@ -26,11 +26,11 @@ public:
         float aperture = 0.5f;    // lens radius (0 = pinhole)
         float focusDistance = 0.0f; // 0 = auto-focus on target
 
-        // Background radial gradient
+        // Background radial gradient (Morandi palette)
         bool gradientBg = true;
-        float gradientScale = 1.0f;   // controls gradient spread (smaller = tighter)
-        Color bgCenter{0.35f, 0.45f, 0.65f, 1.0f};
-        Color bgEdge{0.08f, 0.08f, 0.12f, 1.0f};
+        float gradientScale = 1.0f;
+        Color bgCenter{0.91f, 0.89f, 0.86f, 1.0f};  // warm white
+        Color bgEdge{0.56f, 0.63f, 0.71f, 1.0f};     // muted blue
     };
 
     // Trace a single ray, returning the color.
