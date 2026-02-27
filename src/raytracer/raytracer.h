@@ -28,6 +28,7 @@ public:
 
         // Background radial gradient
         bool gradientBg = true;
+        float gradientScale = 1.0f;   // controls gradient spread (smaller = tighter)
         Color bgCenter{0.35f, 0.45f, 0.65f, 1.0f};
         Color bgEdge{0.08f, 0.08f, 0.12f, 1.0f};
     };

@@ -10,6 +10,7 @@
 #include <QLineEdit>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QColor>
 #include <thread>
 
 #include "gui/raster_preview.h"
@@ -61,6 +62,11 @@ private:
     QCheckBox* dofCheck_;
     QDoubleSpinBox* aperture_;
     QCheckBox* gradientBgCheck_;
+    QDoubleSpinBox* gradientScale_;
+    QPushButton* bgCenterColorBtn_;
+    QPushButton* bgEdgeColorBtn_;
+    QColor bgCenterColor_{89, 115, 166};  // matches Config default
+    QColor bgEdgeColor_{20, 20, 31};
     QPushButton* renderBtn_;
     QProgressBar* progressBar_;
     SkinFetcher* skinFetcher_;

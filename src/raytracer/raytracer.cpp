@@ -19,7 +19,7 @@ Color RayTracer::backgroundColor(const Scene& scene, float u, float v,
         // Radial gradient: center bright, edges dark
         float cx = u - 0.5f;
         float cy = v - 0.5f;
-        float dist = std::sqrt(cx * cx + cy * cy) * 2.0f; // 0 at center, ~1.41 at corners
+        float dist = std::sqrt(cx * cx + cy * cy) * 2.0f * config->gradientScale;
         dist = std::clamp(dist, 0.0f, 1.0f);
         // Smooth falloff
         float t = dist * dist;

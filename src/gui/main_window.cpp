@@ -9,6 +9,7 @@
 #include <QMessageBox>
 #include <QMetaObject>
 #include <QScrollArea>
+#include <QColorDialog>
 
 #include "skin/skin_parser.h"
 #include "skin/skin_fetcher.h"
@@ -122,8 +123,44 @@ void MainWindow::setupUi()
     gradientBgCheck_->setChecked(true);
     fxForm->addRow(gradientBgCheck_);
 
+    gradientScale_ = new QDoubleSpinBox(this);
+    gradientScale_->setRange(0.1, 5.0);
+    gradientScale_->setSingleStep(0.1);
+    gradientScale_->setValue(1.0);
+    fxForm->addRow(tr("渐变范围:"), gradientScale_);
+
+    auto setButtonColor = [](QPushButton* btn, const QColor& color) {
+        btn->setStyleSheet(
+            QString("background-color: %1; border: 1px solid #888; min-height: 20px;")
+                .arg(color.name()));
+        btn->setText(color.name());
+    };
+
+    bgCenterColorBtn_ = new QPushButton(this);
+    setButtonColor(bgCenterColorBtn_, bgCenterColor_);
+    fxForm->addRow(tr("中心颜色:"), bgCenterColorBtn_);
+
+    bgEdgeColorBtn_ = new QPushButton(this);
+    setButtonColor(bgEdgeColorBtn_, bgEdgeColor_);
+    fxForm->addRow(tr("边缘颜色:"), bgEdgeColorBtn_);
+
+    connect(bgCenterColorBtn_, &QPushButton::clicked, this, [this, setButtonColor]() {
+        QColor c = QColorDialog::getColor(bgCenterColor_, this, tr("选择中心颜色"));
+        if (c.isValid()) {
+            bgCenterColor_ = c;
+            setButtonColor(bgCenterColorBtn_, c);
+        }
+    });
+    connect(bgEdgeColorBtn_, &QPushButton::clicked, this, [this, setButtonColor]() {
+        QColor c = QColorDialog::getColor(bgEdgeColor_, this, tr("选择边缘颜色"));
+        if (c.isValid()) {
+            bgEdgeColor_ = c;
+            setButtonColor(bgEdgeColorBtn_, c);
+        }
+    });
+
     aoCheck_ = new QCheckBox(tr("环境光遮蔽 (AO)"), this);
-    aoCheck_->setChecked(false);
+    aoCheck_->setChecked(true);
     fxForm->addRow(aoCheck_);
 
     aoSamples_ = new QSpinBox(this);
@@ -132,7 +169,7 @@ void MainWindow::setupUi()
     fxForm->addRow(tr("AO 采样数:"), aoSamples_);
 
     dofCheck_ = new QCheckBox(tr("景深 (DOF)"), this);
-    dofCheck_->setChecked(false);
+    dofCheck_->setChecked(true);
     fxForm->addRow(dofCheck_);
 
     aperture_ = new QDoubleSpinBox(this);
@@ -291,6 +328,11 @@ void MainWindow::onRenderExport()
 
     // Visual effects
     config.gradientBg = gradientBgCheck_->isChecked();
+    config.gradientScale = static_cast<float>(gradientScale_->value());
+    config.bgCenter = Color(bgCenterColor_.redF(), bgCenterColor_.greenF(),
+                            bgCenterColor_.blueF(), 1.0f);
+    config.bgEdge = Color(bgEdgeColor_.redF(), bgEdgeColor_.greenF(),
+                          bgEdgeColor_.blueF(), 1.0f);
     config.aoEnabled = aoCheck_->isChecked();
     config.aoSamples = aoSamples_->value();
     config.dofEnabled = dofCheck_->isChecked();
@@ -370,6 +412,9 @@ void MainWindow::setControlsEnabled(bool enabled)
     outputWidth_->setEnabled(enabled);
     outputHeight_->setEnabled(enabled);
     gradientBgCheck_->setEnabled(enabled);
+    gradientScale_->setEnabled(enabled);
+    bgCenterColorBtn_->setEnabled(enabled);
+    bgEdgeColorBtn_->setEnabled(enabled);
     aoCheck_->setEnabled(enabled);
     aoSamples_->setEnabled(enabled);
     dofCheck_->setEnabled(enabled);
