@@ -26,11 +26,11 @@ add_executable(mcskin_tests ${TEST_SOURCES})
 
 target_link_libraries(mcskin_tests PRIVATE
     mcskin_core
-    GTest::GTest
-    GTest::Main
+    GTest::gtest
+    GTest::gtest_main
     rapidcheck
     rapidcheck_gtest
 )
 
 include(GoogleTest)
-gtest_discover_tests(mcskin_tests)
+gtest_discover_tests(mcskin_tests DISCOVERY_MODE POST_BUILD)
