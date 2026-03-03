@@ -326,6 +326,61 @@ function Build-Project {
     # Determine if using multi-config generator
     $isMultiConfig = ($script:Generator -eq "Visual Studio 17 2022")
     
+    # Copy Qt DLLs next to executables so they can run without PATH setup
+    $qtBinPath = $null
+    foreach ($arg in $script:CMakeExtra) {
+        if ($arg -match "-DCMAKE_PREFIX_PATH=(.+)") {
+            $qtBinPath = Join-Path $Matches[1] "bin"
+            break
+        }
+    }
+    
+    if ($qtBinPath -and (Test-Path $qtBinPath)) {
+        $outputDirs = @()
+        if ($script:BuildApp) {
+            $outputDirs += if ($isMultiConfig) { "$buildDir\src\$($script:BuildType)" } else { "$buildDir\src" }
+        }
+        if ($script:BuildTests) {
+            $outputDirs += if ($isMultiConfig) { "$buildDir\tests\$($script:BuildType)" } else { "$buildDir\tests" }
+        }
+        
+        $qtDlls = @("Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll", "Qt6OpenGL.dll", "Qt6OpenGLWidgets.dll", "Qt6Network.dll")
+        foreach ($dir in $outputDirs) {
+            if (Test-Path $dir) {
+                foreach ($dll in $qtDlls) {
+                    $src = Join-Path $qtBinPath $dll
+                    $dst = Join-Path $dir $dll
+                    if ((Test-Path $src) -and !(Test-Path $dst)) {
+                        Copy-Item $src $dst
+                    }
+                }
+                # Copy Qt platform plugin
+                $platformSrc = Join-Path (Split-Path $qtBinPath) "plugins\platforms\qwindows.dll"
+                $platformDir = Join-Path $dir "platforms"
+                if ((Test-Path $platformSrc) -and !(Test-Path $platformDir)) {
+                    New-Item -ItemType Directory -Path $platformDir | Out-Null
+                    Copy-Item $platformSrc (Join-Path $platformDir "qwindows.dll")
+                }
+                # Copy MinGW runtime DLLs if using MinGW
+                $mingwBin = $null
+                # qtBinPath is e.g. C:\Qt\6.10.2\mingw_64\bin -> Qt root is 3 levels up
+                $qtRoot = Split-Path (Split-Path (Split-Path $qtBinPath))
+                $mingwTools = Get-ChildItem "$qtRoot\Tools\mingw*\bin" -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($mingwTools) { $mingwBin = $mingwTools.FullName }
+                if ($mingwBin) {
+                    foreach ($rt in @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")) {
+                        $src = Join-Path $mingwBin $rt
+                        $dst = Join-Path $dir $rt
+                        if ((Test-Path $src) -and !(Test-Path $dst)) {
+                            Copy-Item $src $dst
+                        }
+                    }
+                }
+            }
+        }
+        Write-Info "Qt DLLs copied to output directories."
+    }
+    
     if ($script:BuildApp) {
         if ($isMultiConfig) {
             Write-Info "Executable: $buildDir\src\$($script:BuildType)\mcskin_raytracer.exe"
@@ -345,21 +400,6 @@ function Build-Project {
         if ($rt -match "^[Yy]") {
             Write-Info "Running tests..."
             
-            # Ensure Qt DLLs are in PATH for test execution
-            $qtBinPath = $null
-            foreach ($arg in $script:CMakeExtra) {
-                if ($arg -match "-DCMAKE_PREFIX_PATH=(.+)") {
-                    $qtPath = $Matches[1]
-                    $qtBinPath = Join-Path $qtPath "bin"
-                    break
-                }
-            }
-            
-            $oldPath = $env:Path
-            if ($qtBinPath -and (Test-Path $qtBinPath)) {
-                $env:Path = "$qtBinPath;$env:Path"
-            }
-            
             Push-Location $buildDir
             $testExe = if ($isMultiConfig) {
                 Join-Path $buildDir "tests\$($script:BuildType)\mcskin_tests.exe"
@@ -368,16 +408,16 @@ function Build-Project {
             }
             
             if (Test-Path $testExe) {
-                # Run test executable directly to avoid CTest discovery issues
-                $proc = Start-Process -FilePath $testExe -ArgumentList "--gtest_color=yes" -NoNewWindow -Wait -PassThru
-                $testResult = $proc.ExitCode
+                # Suppress PowerShell stderr error detection
+                $ErrorActionPreference = "Continue"
+                & $testExe --gtest_color=yes
+                $testResult = $LASTEXITCODE
+                $ErrorActionPreference = "Stop"
             } else {
                 Write-Err "Test executable not found: $testExe"
                 $testResult = 1
             }
             Pop-Location
-            
-            $env:Path = $oldPath
             
             if ($testResult -ne 0) {
                 Write-Warn "Some tests failed. Check output above for details."
