@@ -2,6 +2,7 @@
 #include "skin/image.h"
 #include "skin/texture_region.h"
 #include <cstdio>
+#include <filesystem>
 
 // ── TextureRegion Tests ─────────────────────────────────────────────────────
 
@@ -126,7 +127,7 @@ TEST(Image, SaveAndReload) {
     img.pixels[2] = Color(0.0f, 0.0f, 1.0f, 1.0f);  // blue
     img.pixels[3] = Color(1.0f, 1.0f, 1.0f, 1.0f);  // white
 
-    const std::string tmpPath = "/tmp/test_image_save_reload.png";
+    const std::string tmpPath = (std::filesystem::temp_directory_path() / "test_image_save_reload.png").string();
     img.savePNG(tmpPath);
 
     auto loaded = Image::load(tmpPath);

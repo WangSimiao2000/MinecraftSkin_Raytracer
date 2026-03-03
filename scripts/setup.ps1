@@ -361,12 +361,20 @@ function Build-Project {
             }
             
             Push-Location $buildDir
-            if ($isMultiConfig) {
-                & ctest --build-config $script:BuildType --output-on-failure
+            $testExe = if ($isMultiConfig) {
+                Join-Path $buildDir "tests\$($script:BuildType)\mcskin_tests.exe"
             } else {
-                & ctest --output-on-failure
+                Join-Path $buildDir "tests\mcskin_tests.exe"
             }
-            $testResult = $LASTEXITCODE
+            
+            if (Test-Path $testExe) {
+                # Run test executable directly to avoid CTest discovery issues
+                $proc = Start-Process -FilePath $testExe -ArgumentList "--gtest_color=yes" -NoNewWindow -Wait -PassThru
+                $testResult = $proc.ExitCode
+            } else {
+                Write-Err "Test executable not found: $testExe"
+                $testResult = 1
+            }
             Pop-Location
             
             $env:Path = $oldPath

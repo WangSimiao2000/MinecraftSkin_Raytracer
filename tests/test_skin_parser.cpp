@@ -2,6 +2,7 @@
 #include "skin/skin_parser.h"
 #include <cstdio>
 #include <fstream>
+#include <filesystem>
 
 // Helper: create a test skin image with identifiable pixel patterns.
 // Each pixel at (x,y) gets a unique color based on coordinates.
@@ -22,7 +23,7 @@ static Image makeTestImage(int w, int h) {
 
 // Helper: save an Image to a temp PNG and return the path
 static std::string saveTempImage(const Image& img, const std::string& name) {
-    std::string path = "/tmp/" + name + ".png";
+    std::string path = (std::filesystem::temp_directory_path() / (name + ".png")).string();
     img.savePNG(path);
     return path;
 }
@@ -72,7 +73,7 @@ TEST(SkinParser, Parse64x32Format) {
 // ── Invalid File Handling ───────────────────────────────────────────────────
 
 TEST(SkinParser, RejectNonexistentFile) {
-    auto result = SkinParser::parse("/tmp/nonexistent_skin_file_xyz.png");
+    auto result = SkinParser::parse((std::filesystem::temp_directory_path() / "nonexistent_skin_file_xyz.png").string());
     ASSERT_FALSE(result.isOk());
     EXPECT_TRUE(result.error.has_value());
 }
@@ -89,7 +90,7 @@ TEST(SkinParser, RejectWrongDimensions) {
 }
 
 TEST(SkinParser, RejectNonPngFile) {
-    std::string path = "/tmp/test_not_a_png.png";
+    std::string path = (std::filesystem::temp_directory_path() / "test_not_a_png.png").string();
     std::ofstream f(path, std::ios::binary);
     f << "this is not a png file";
     f.close();

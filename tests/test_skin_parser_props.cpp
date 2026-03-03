@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <string>
 #include <cmath>
+#include <filesystem>
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -86,8 +87,8 @@ RC_GTEST_PROP(SkinParserProps, SkinParseRegionCorrectness, ()) {
     Image srcImg = generateRandom64x64Image();
 
     // Save to temp file
-    std::string tmpPath = "/tmp/rc_skin_prop1_" +
-        std::to_string(reinterpret_cast<uintptr_t>(&srcImg)) + ".png";
+    std::string tmpPath = (std::filesystem::temp_directory_path() /
+        ("rc_skin_prop1_" + std::to_string(reinterpret_cast<uintptr_t>(&srcImg)) + ".png")).string();
     srcImg.savePNG(tmpPath);
 
     // Parse with SkinParser
@@ -207,8 +208,8 @@ RC_GTEST_PROP(SkinParserProps, OldFormatLeftRightMirror, ()) {
     Image srcImg = generateRandom64x32Image();
 
     // Save to temp file
-    std::string tmpPath = "/tmp/rc_skin_prop2_" +
-        std::to_string(reinterpret_cast<uintptr_t>(&srcImg)) + ".png";
+    std::string tmpPath = (std::filesystem::temp_directory_path() /
+        ("rc_skin_prop2_" + std::to_string(reinterpret_cast<uintptr_t>(&srcImg)) + ".png")).string();
     srcImg.savePNG(tmpPath);
 
     // Parse with SkinParser
@@ -240,7 +241,7 @@ RC_GTEST_PROP(SkinParserProps, OldFormatLeftRightMirror, ()) {
 // Helper: write raw bytes to a temp file and return the path
 static std::string writeTempFile(const std::string& tag,
                                  const std::vector<uint8_t>& data) {
-    std::string path = "/tmp/rc_skin_prop3_" + tag + ".bin";
+    std::string path = (std::filesystem::temp_directory_path() / ("rc_skin_prop3_" + tag + ".bin")).string();
     std::ofstream ofs(path, std::ios::binary);
     ofs.write(reinterpret_cast<const char*>(data.data()),
               static_cast<std::streamsize>(data.size()));
@@ -255,7 +256,7 @@ static std::vector<uint8_t> createValidPNGBytes(int w, int h) {
     for (int i = 0; i < w * h; ++i) {
         img.pixels[i] = Color(0.5f, 0.5f, 0.5f, 1.0f);
     }
-    std::string tmpPath = "/tmp/rc_skin_prop3_helper.png";
+    std::string tmpPath = (std::filesystem::temp_directory_path() / "rc_skin_prop3_helper.png").string();
     img.savePNG(tmpPath);
 
     std::ifstream ifs(tmpPath, std::ios::binary | std::ios::ate);
@@ -306,7 +307,7 @@ RC_GTEST_PROP(SkinParserProps, InvalidFileRejection_WrongDimensions, ()) {
         img.pixels[i] = Color(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
     }
 
-    std::string path = "/tmp/rc_skin_prop3_wrongdim.png";
+    std::string path = (std::filesystem::temp_directory_path() / "rc_skin_prop3_wrongdim.png").string();
     img.savePNG(path);
 
     auto result = SkinParser::parse(path);
