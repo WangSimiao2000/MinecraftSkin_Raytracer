@@ -361,6 +361,13 @@ function Build-Project {
                     New-Item -ItemType Directory -Path $platformDir | Out-Null
                     Copy-Item $platformSrc (Join-Path $platformDir "qwindows.dll")
                 }
+                # Copy Qt TLS plugins for HTTPS support
+                $tlsPluginDir = Join-Path (Split-Path $qtBinPath) "plugins\tls"
+                $tlsDestDir = Join-Path $dir "tls"
+                if ((Test-Path $tlsPluginDir) -and !(Test-Path $tlsDestDir)) {
+                    New-Item -ItemType Directory -Path $tlsDestDir | Out-Null
+                    Copy-Item "$tlsPluginDir\*" $tlsDestDir
+                }
                 # Copy MinGW runtime DLLs if using MinGW
                 $mingwBin = $null
                 # qtBinPath is e.g. C:\Qt\6.10.2\mingw_64\bin -> Qt root is 3 levels up

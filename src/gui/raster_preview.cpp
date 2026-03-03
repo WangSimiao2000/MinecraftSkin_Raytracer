@@ -306,24 +306,29 @@ void RasterPreview::paintGL() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    // High-DPI: OpenGL framebuffer uses physical pixels
+    const float dpr = devicePixelRatioF();
+    const int physW = static_cast<int>(width() * dpr);
+    const int physH = static_cast<int>(height() * dpr);
+
     // Compute letterboxed viewport matching export aspect ratio
-    int vpX = 0, vpY = 0, vpW = width(), vpH = height();
+    int vpX = 0, vpY = 0, vpW = physW, vpH = physH;
     if (exportW_ > 0 && exportH_ > 0) {
         float exportAspect = static_cast<float>(exportW_) / static_cast<float>(exportH_);
-        float viewAspect = static_cast<float>(width()) / static_cast<float>(height());
+        float viewAspect = static_cast<float>(physW) / static_cast<float>(physH);
         if (viewAspect > exportAspect) {
-            vpH = height();
+            vpH = physH;
             vpW = static_cast<int>(vpH * exportAspect);
         } else {
-            vpW = width();
+            vpW = physW;
             vpH = static_cast<int>(vpW / exportAspect);
         }
-        vpX = (width() - vpW) / 2;
-        vpY = (height() - vpH) / 2;
+        vpX = (physW - vpW) / 2;
+        vpY = (physH - vpH) / 2;
     }
 
     // Clear full widget first (black bars)
-    glViewport(0, 0, width(), height());
+    glViewport(0, 0, physW, physH);
     glClearColor(0.1f, 0.1f, 0.12f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -406,7 +411,7 @@ void RasterPreview::paintGL() {
 
     // Restore full viewport for 2D overlay
     glDisable(GL_SCISSOR_TEST);
-    glViewport(0, 0, width(), height());
+    glViewport(0, 0, physW, physH);
 
     // ── Draw 2D overlay ──
     QPainter painter(this);
@@ -414,11 +419,12 @@ void RasterPreview::paintGL() {
 
     // ── Draw export resolution frame border ──
     if (exportW_ > 0 && exportH_ > 0) {
-        // vpX/vpY/vpW/vpH are in GL coords (origin bottom-left),
-        // QPainter uses top-left origin, so flip Y
-        int frameX = vpX;
-        int frameY = height() - vpY - vpH;
-        QRect frameRect(frameX, frameY, vpW, vpH);
+        // Convert physical pixel coords back to logical for QPainter
+        int frameX = static_cast<int>(vpX / dpr);
+        int frameY = height() - static_cast<int>((vpY + vpH) / dpr);
+        int frameW = static_cast<int>(vpW / dpr);
+        int frameH = static_cast<int>(vpH / dpr);
+        QRect frameRect(frameX, frameY, frameW, frameH);
 
         // Draw frame border
         QPen framePen(QColor(255, 255, 255, 120), 1.0, Qt::DashLine);
