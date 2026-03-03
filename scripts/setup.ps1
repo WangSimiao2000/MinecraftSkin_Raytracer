@@ -136,6 +136,7 @@ $script:BuildApp   = $true
 $script:BuildTests = $true
 $script:BuildType  = "Release"
 $script:CMakeExtra = @()
+$script:Generator  = $null
 
 function Select-Modules {
     Write-Host ""
@@ -184,6 +185,22 @@ function Select-Modules {
         $qtPath = Read-Host
         if ($qtPath) {
             $script:CMakeExtra += "-DCMAKE_PREFIX_PATH=$qtPath"
+            
+            # If using MinGW Qt, add MinGW bin to PATH
+            if ($qtPath -match "mingw") {
+                $mingwBin = Join-Path $qtPath "bin"
+                if (Test-Path $mingwBin) {
+                    $env:Path = "$mingwBin;$env:Path"
+                    Write-Info "Added Qt MinGW bin to PATH: $mingwBin"
+                }
+                # Also check for MinGW tools in Qt installation
+                $qtRoot = Split-Path (Split-Path $qtPath)
+                $mingwTools = Get-ChildItem "$qtRoot\Tools\mingw*\bin" -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($mingwTools) {
+                    $env:Path = "$($mingwTools.FullName);$env:Path"
+                    Write-Info "Added MinGW tools to PATH: $($mingwTools.FullName)"
+                }
+            }
         }
     }
 }
@@ -194,15 +211,79 @@ function Build-Project {
     Write-Info "Starting build..."
 
     $buildDir = Join-Path $ProjectDir "build"
+    
+    # Check for generator mismatch and clean if needed
+    $cacheFile = Join-Path $buildDir "CMakeCache.txt"
+    if (Test-Path $cacheFile) {
+        $cacheContent = Get-Content $cacheFile -Raw
+        if ($cacheContent -match "CMAKE_GENERATOR:INTERNAL=(.+)") {
+            $cachedGenerator = $Matches[1]
+            # Determine current generator first
+            $currentGenerator = $null
+            if (Test-Cmd "ninja") {
+                $currentGenerator = "Ninja"
+            }
+            elseif (Test-Cmd "mingw32-make") {
+                $currentGenerator = "MinGW Makefiles"
+            }
+            elseif (Test-Cmd "g++") {
+                $currentGenerator = "MinGW Makefiles"
+            }
+            elseif (Test-Cmd "cl") {
+                $currentGenerator = "Visual Studio 17 2022"
+            }
+            
+            if ($currentGenerator -and $cachedGenerator -ne $currentGenerator) {
+                Write-Warn "Generator mismatch detected: cached=$cachedGenerator, current=$currentGenerator"
+                Write-Warn "Cleaning build directory..."
+                Remove-Item -Recurse -Force $buildDir
+                New-Item -ItemType Directory -Path $buildDir | Out-Null
+            }
+        }
+    }
+    
     if (-not (Test-Path $buildDir)) {
         New-Item -ItemType Directory -Path $buildDir | Out-Null
     }
 
+    # Auto-detect generator based on available tools
+    $generator = $null
+    
+    if (Test-Cmd "ninja") {
+        $generator = "Ninja"
+        Write-Info "Using Ninja generator"
+    }
+    elseif (Test-Cmd "mingw32-make") {
+        $generator = "MinGW Makefiles"
+        Write-Info "Using MinGW Makefiles generator"
+    }
+    elseif (Test-Cmd "g++") {
+        $generator = "MinGW Makefiles"
+        Write-Info "Using MinGW Makefiles generator (g++ detected)"
+    }
+    elseif (Test-Cmd "cl") {
+        $generator = "Visual Studio 17 2022"
+        Write-Info "Using Visual Studio 2022 generator"
+    }
+    else {
+        Write-Err "No suitable build tool found. Please install Ninja, MinGW, or Visual Studio."
+        exit 1
+    }
+    
+    $script:Generator = $generator
+    
     $cmakeArgs = @(
         "-S", $ProjectDir,
         "-B", $buildDir,
-        "-DCMAKE_BUILD_TYPE=$($script:BuildType)"
+        "-G", $generator
     )
+    
+    if ($generator -eq "Visual Studio 17 2022") {
+        $cmakeArgs += "-A", "x64"
+    }
+    else {
+        $cmakeArgs += "-DCMAKE_BUILD_TYPE=$($script:BuildType)"
+    }
 
     if ($script:BuildTests) {
         $cmakeArgs += "-DBUILD_TESTS=ON"
@@ -212,6 +293,9 @@ function Build-Project {
     }
 
     $cmakeArgs += $script:CMakeExtra
+    
+    # Note: CMAKE_BUILD_TYPE is ignored by multi-config generators like Visual Studio
+    # Build type is specified during build phase with --config
 
     Write-Info "cmake $($cmakeArgs -join ' ')"
     & cmake @cmakeArgs
@@ -238,19 +322,58 @@ function Build-Project {
 
     Write-Host ""
     Write-Info "Build complete."
+    
+    # Determine if using multi-config generator
+    $isMultiConfig = ($script:Generator -eq "Visual Studio 17 2022")
+    
     if ($script:BuildApp) {
-        Write-Info "Executable: $buildDir\src\$($script:BuildType)\mcskin_raytracer.exe"
+        if ($isMultiConfig) {
+            Write-Info "Executable: $buildDir\src\$($script:BuildType)\mcskin_raytracer.exe"
+        } else {
+            Write-Info "Executable: $buildDir\src\mcskin_raytracer.exe"
+        }
     }
     if ($script:BuildTests) {
-        Write-Info "Tests: $buildDir\tests\$($script:BuildType)\mcskin_tests.exe"
+        if ($isMultiConfig) {
+            Write-Info "Tests: $buildDir\tests\$($script:BuildType)\mcskin_tests.exe"
+        } else {
+            Write-Info "Tests: $buildDir\tests\mcskin_tests.exe"
+        }
         Write-Host ""
         Write-Ask "Run tests now? [y/N] "
         $rt = Read-Host
         if ($rt -match "^[Yy]") {
             Write-Info "Running tests..."
+            
+            # Ensure Qt DLLs are in PATH for test execution
+            $qtBinPath = $null
+            foreach ($arg in $script:CMakeExtra) {
+                if ($arg -match "-DCMAKE_PREFIX_PATH=(.+)") {
+                    $qtPath = $Matches[1]
+                    $qtBinPath = Join-Path $qtPath "bin"
+                    break
+                }
+            }
+            
+            $oldPath = $env:Path
+            if ($qtBinPath -and (Test-Path $qtBinPath)) {
+                $env:Path = "$qtBinPath;$env:Path"
+            }
+            
             Push-Location $buildDir
-            & ctest --build-config $script:BuildType --output-on-failure
+            if ($isMultiConfig) {
+                & ctest --build-config $script:BuildType --output-on-failure
+            } else {
+                & ctest --output-on-failure
+            }
+            $testResult = $LASTEXITCODE
             Pop-Location
+            
+            $env:Path = $oldPath
+            
+            if ($testResult -ne 0) {
+                Write-Warn "Some tests failed. Check output above for details."
+            }
         }
     }
 }

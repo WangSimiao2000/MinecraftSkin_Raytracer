@@ -24,7 +24,7 @@ protected:
     std::string tmpPath;
 
     void SetUp() override {
-        tmpPath = fs::temp_directory_path() / "test_image_writer_output.png";
+        tmpPath = (fs::temp_directory_path() / "test_image_writer_output.png").string();
     }
 
     void TearDown() override {
