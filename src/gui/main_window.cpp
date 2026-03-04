@@ -195,10 +195,126 @@ void MainWindow::setupUi()
     for (const auto& p : poses_) {
         poseCombo_->addItem(QString::fromStdString(p.name));
     }
+    poseCombo_->addItem(tr("自定义"));
     poseLayout->addWidget(poseCombo_);
     panel->addWidget(poseGroup);
     connect(poseCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &MainWindow::onPoseChanged);
+
+    // ── Pose control panel (scrollable) ──
+    {
+        auto* poseCtrlGroup = new QGroupBox(tr("姿态控制"), this);
+        auto* poseCtrlLayout = new QVBoxLayout(poseCtrlGroup);
+
+        const QStringList partNames = {
+            tr("头部"), tr("躯干"), tr("右臂"), tr("左臂"), tr("右腿"), tr("左腿")
+        };
+        const QStringList axisNames = { "X", "Y", "Z" };
+
+        auto makePoseSlider = [this](int min, int max) {
+            auto* s = new QSlider(Qt::Horizontal, this);
+            s->setRange(min, max);
+            s->setValue(0);
+            return s;
+        };
+
+        // Rotation sliders for each body part
+        for (int part = 0; part < kNumBodyParts; ++part) {
+            auto* partLabel = new QLabel(partNames[part], this);
+            partLabel->setStyleSheet("font-weight: bold; margin-top: 4px;");
+            poseCtrlLayout->addWidget(partLabel);
+
+            auto* rotForm = new QFormLayout();
+            for (int axis = 0; axis < kNumAxes; ++axis) {
+                auto* row = new QHBoxLayout();
+                auto* slider = makePoseSlider(-180, 180);
+                auto* valLabel = new QLabel("0°", this);
+                valLabel->setFixedWidth(40);
+                valLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+                row->addWidget(slider, 1);
+                row->addWidget(valLabel);
+                rotForm->addRow(tr("旋转%1:").arg(axisNames[axis]), row);
+                rotSliders_[part][axis] = slider;
+                rotLabels_[part][axis] = valLabel;
+
+                connect(slider, &QSlider::valueChanged, this, [this, valLabel](int v) {
+                    valLabel->setText(QString("%1°").arg(v));
+                    // Switch to "自定义" mode and rebuild scene
+                    int customIdx = poseCombo_->count() - 1;
+                    if (poseCombo_->currentIndex() != customIdx) {
+                        poseCombo_->blockSignals(true);
+                        poseCombo_->setCurrentIndex(customIdx);
+                        poseCombo_->blockSignals(false);
+                    }
+                    rebuildScene();
+                });
+            }
+            poseCtrlLayout->addLayout(rotForm);
+
+            // Torso gets additional translation sliders
+            if (part == 1) {
+                auto* transLabel = new QLabel(tr("躯干平移"), this);
+                transLabel->setStyleSheet("font-weight: bold; margin-top: 4px;");
+                poseCtrlLayout->addWidget(transLabel);
+
+                auto* transForm = new QFormLayout();
+                for (int axis = 0; axis < kNumAxes; ++axis) {
+                    auto* row = new QHBoxLayout();
+                    auto* slider = makePoseSlider(-180, 180);
+                    auto* valLabel = new QLabel("0", this);
+                    valLabel->setFixedWidth(40);
+                    valLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+                    row->addWidget(slider, 1);
+                    row->addWidget(valLabel);
+                    transForm->addRow(tr("平移%1:").arg(axisNames[axis]), row);
+                    transSliders_[axis] = slider;
+                    transLabels_[axis] = valLabel;
+
+                    connect(slider, &QSlider::valueChanged, this, [this, valLabel](int v) {
+                        valLabel->setText(QString::number(v));
+                        // Switch to "自定义" mode and rebuild scene
+                        int customIdx = poseCombo_->count() - 1;
+                        if (poseCombo_->currentIndex() != customIdx) {
+                            poseCombo_->blockSignals(true);
+                            poseCombo_->setCurrentIndex(customIdx);
+                            poseCombo_->blockSignals(false);
+                        }
+                        rebuildScene();
+                    });
+                }
+                poseCtrlLayout->addLayout(transForm);
+            }
+        }
+
+        // Reset pose button
+        resetPoseBtn_ = new QPushButton(tr("重置姿态"), this);
+        poseCtrlLayout->addWidget(resetPoseBtn_);
+        connect(resetPoseBtn_, &QPushButton::clicked, this, [this]() {
+            // Block signals on all sliders to avoid triggering individual rebuilds
+            for (int part = 0; part < kNumBodyParts; ++part) {
+                for (int axis = 0; axis < kNumAxes; ++axis) {
+                    rotSliders_[part][axis]->blockSignals(true);
+                    rotSliders_[part][axis]->setValue(0);
+                    rotLabels_[part][axis]->setText("0°");
+                    rotSliders_[part][axis]->blockSignals(false);
+                }
+            }
+            for (int axis = 0; axis < kNumAxes; ++axis) {
+                transSliders_[axis]->blockSignals(true);
+                transSliders_[axis]->setValue(0);
+                transLabels_[axis]->setText("0");
+                transSliders_[axis]->blockSignals(false);
+            }
+            // Switch to "自定义" mode and rebuild
+            int customIdx = poseCombo_->count() - 1;
+            poseCombo_->blockSignals(true);
+            poseCombo_->setCurrentIndex(customIdx);
+            poseCombo_->blockSignals(false);
+            rebuildScene();
+        });
+
+        panel->addWidget(poseCtrlGroup);
+    }
 
     // Light position
     auto* lightGroup = new QGroupBox(tr("光源"), this);
@@ -370,6 +486,17 @@ void MainWindow::setupUi()
         w->setFocusPolicy(Qt::StrongFocus);
         w->installEventFilter(wheelFilter);
     }
+    // Also filter pose sliders
+    for (int part = 0; part < kNumBodyParts; ++part) {
+        for (int axis = 0; axis < kNumAxes; ++axis) {
+            rotSliders_[part][axis]->setFocusPolicy(Qt::StrongFocus);
+            rotSliders_[part][axis]->installEventFilter(wheelFilter);
+        }
+    }
+    for (int axis = 0; axis < kNumAxes; ++axis) {
+        transSliders_[axis]->setFocusPolicy(Qt::StrongFocus);
+        transSliders_[axis]->installEventFilter(wheelFilter);
+    }
 
     // Connections
     connect(importBtn_, &QPushButton::clicked, this, &MainWindow::onImportSkin);
@@ -446,8 +573,26 @@ void MainWindow::loadSkinFile(const QString& filePath)
 void MainWindow::rebuildScene()
 {
     int poseIdx = poseCombo_->currentIndex();
-    Pose pose = (poseIdx >= 0 && poseIdx < static_cast<int>(poses_.size()))
-                ? poses_[poseIdx] : Pose{};
+    Pose pose;
+    if (poseIdx >= 0 && poseIdx < static_cast<int>(poses_.size())) {
+        pose = poses_[poseIdx];
+    } else {
+        // "自定义" mode: build Pose from slider values
+        pose.name = "自定义";
+        PartPose* parts[] = {
+            &pose.head, &pose.body, &pose.rightArm,
+            &pose.leftArm, &pose.rightLeg, &pose.leftLeg
+        };
+        for (int part = 0; part < kNumBodyParts; ++part) {
+            parts[part]->rotX = static_cast<float>(rotSliders_[part][0]->value());
+            parts[part]->rotY = static_cast<float>(rotSliders_[part][1]->value());
+            parts[part]->rotZ = static_cast<float>(rotSliders_[part][2]->value());
+        }
+        pose.torsoTranslation = Vec3(
+            static_cast<float>(transSliders_[0]->value()),
+            static_cast<float>(transSliders_[1]->value()),
+            static_cast<float>(transSliders_[2]->value()));
+    }
 
     if (currentSkin_.has_value()) {
         scene_ = MeshBuilder::buildScene(*currentSkin_, pose);
@@ -467,8 +612,33 @@ void MainWindow::rebuildScene()
     preview_->setScene(scene_);
 }
 
-void MainWindow::onPoseChanged(int /*index*/)
+void MainWindow::onPoseChanged(int index)
 {
+    if (index >= 0 && index < static_cast<int>(poses_.size())) {
+        // Built-in preset selected: update all sliders to match preset values
+        const Pose& pose = poses_[index];
+        const PartPose* parts[] = {
+            &pose.head, &pose.body, &pose.rightArm,
+            &pose.leftArm, &pose.rightLeg, &pose.leftLeg
+        };
+        for (int part = 0; part < kNumBodyParts; ++part) {
+            const float vals[] = { parts[part]->rotX, parts[part]->rotY, parts[part]->rotZ };
+            for (int axis = 0; axis < kNumAxes; ++axis) {
+                rotSliders_[part][axis]->blockSignals(true);
+                rotSliders_[part][axis]->setValue(static_cast<int>(vals[axis]));
+                rotLabels_[part][axis]->setText(QString("%1°").arg(static_cast<int>(vals[axis])));
+                rotSliders_[part][axis]->blockSignals(false);
+            }
+        }
+        const float trans[] = { pose.torsoTranslation.x, pose.torsoTranslation.y, pose.torsoTranslation.z };
+        for (int axis = 0; axis < kNumAxes; ++axis) {
+            transSliders_[axis]->blockSignals(true);
+            transSliders_[axis]->setValue(static_cast<int>(trans[axis]));
+            transLabels_[axis]->setText(QString::number(static_cast<int>(trans[axis])));
+            transSliders_[axis]->blockSignals(false);
+        }
+    }
+    // For "自定义" (custom) mode, sliders already hold the current values
     rebuildScene();
 }
 
@@ -605,4 +775,15 @@ void MainWindow::setControlsEnabled(bool enabled)
     lightRadius_->setEnabled(enabled);
     renderBtn_->setEnabled(enabled);
     preview_->setInteractionEnabled(enabled);
+
+    // Pose control widgets
+    for (int part = 0; part < kNumBodyParts; ++part) {
+        for (int axis = 0; axis < kNumAxes; ++axis) {
+            rotSliders_[part][axis]->setEnabled(enabled);
+        }
+    }
+    for (int axis = 0; axis < kNumAxes; ++axis) {
+        transSliders_[axis]->setEnabled(enabled);
+    }
+    resetPoseBtn_->setEnabled(enabled);
 }

@@ -8,11 +8,12 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-// Rotate a point around a pivot by angles (degrees) on X and Z axes
+// Rotate a point around a pivot by angles (degrees) on X, Y, and Z axes (applied in X → Y → Z order)
 static Vec3 rotatePoint(const Vec3& point, const Vec3& pivot,
-                        float rotXDeg, float rotZDeg) {
+                        float rotXDeg, float rotYDeg, float rotZDeg) {
     Vec3 p = point - pivot;
 
+    // Rotate around X axis (pitch)
     if (std::fabs(rotXDeg) > 0.01f) {
         float rad = rotXDeg * static_cast<float>(M_PI) / 180.0f;
         float cosA = std::cos(rad);
@@ -23,6 +24,18 @@ static Vec3 rotatePoint(const Vec3& point, const Vec3& pivot,
         p.z = newZ;
     }
 
+    // Rotate around Y axis (yaw)
+    if (std::fabs(rotYDeg) > 0.01f) {
+        float rad = rotYDeg * static_cast<float>(M_PI) / 180.0f;
+        float cosA = std::cos(rad);
+        float sinA = std::sin(rad);
+        float newX = p.x * cosA + p.z * sinA;
+        float newZ = -p.x * sinA + p.z * cosA;
+        p.x = newX;
+        p.z = newZ;
+    }
+
+    // Rotate around Z axis (roll)
     if (std::fabs(rotZDeg) > 0.01f) {
         float rad = rotZDeg * static_cast<float>(M_PI) / 180.0f;
         float cosA = std::cos(rad);
@@ -37,8 +50,8 @@ static Vec3 rotatePoint(const Vec3& point, const Vec3& pivot,
 }
 
 // Rotate direction vector (no translation)
-static Vec3 rotateDir(const Vec3& dir, float rotXDeg, float rotZDeg) {
-    return rotatePoint(dir, Vec3(0, 0, 0), rotXDeg, rotZDeg);
+static Vec3 rotateDir(const Vec3& dir, float rotXDeg, float rotYDeg, float rotZDeg) {
+    return rotatePoint(dir, Vec3(0, 0, 0), rotXDeg, rotYDeg, rotZDeg);
 }
 
 // Compute AABB bounds from a mesh's triangles
@@ -378,32 +391,57 @@ HitResult intersectMesh(const Ray& ray, const Mesh& mesh) {
 
     // For rotated meshes: transform ray into local (unrotated) space,
     // intersect with the unrotated AABB, then transform results back.
-    // Inverse rotation = apply rotations in reverse order with negated angles:
-    //   forward:  rotX then rotZ
-    //   inverse:  -rotZ then -rotX
     Vec3 localOrigin = ray.origin;
     Vec3 localDir = ray.direction;
 
-    // Inverse rotation around pivot: first undo rotZ, then undo rotX
-    localOrigin = rotatePoint(localOrigin, mesh.pivot, 0, -mesh.rotZ);
-    localOrigin = rotatePoint(localOrigin, mesh.pivot, -mesh.rotX, 0);
-    localDir = rotateDir(localDir, 0, -mesh.rotZ);
-    localDir = rotateDir(localDir, -mesh.rotX, 0);
+    if (mesh.hasTorsoTransform) {
+        // Step 1: Undo torso translation
+        localOrigin = localOrigin - mesh.torsoTranslation;
+
+        // Step 2: Undo torso rotation (Z→Y→X) around torso pivot
+        localOrigin = rotatePoint(localOrigin, mesh.torsoPivot, 0, 0, -mesh.torsoRotZ);
+        localOrigin = rotatePoint(localOrigin, mesh.torsoPivot, 0, -mesh.torsoRotY, 0);
+        localOrigin = rotatePoint(localOrigin, mesh.torsoPivot, -mesh.torsoRotX, 0, 0);
+        localDir = rotateDir(localDir, 0, 0, -mesh.torsoRotZ);
+        localDir = rotateDir(localDir, 0, -mesh.torsoRotY, 0);
+        localDir = rotateDir(localDir, -mesh.torsoRotX, 0, 0);
+    }
+
+    // Step 3: Undo part local rotation (Z→Y→X) around part pivot
+    localOrigin = rotatePoint(localOrigin, mesh.pivot, 0, 0, -mesh.rotZ);
+    localOrigin = rotatePoint(localOrigin, mesh.pivot, 0, -mesh.rotY, 0);
+    localOrigin = rotatePoint(localOrigin, mesh.pivot, -mesh.rotX, 0, 0);
+    localDir = rotateDir(localDir, 0, 0, -mesh.rotZ);
+    localDir = rotateDir(localDir, 0, -mesh.rotY, 0);
+    localDir = rotateDir(localDir, -mesh.rotX, 0, 0);
 
     Ray localRay(localOrigin, localDir.normalize());
 
     HitResult result = intersectAABB(localRay, mesh, mesh.localTriangles);
 
     if (result.hit) {
-        // Transform hit point and normal back to world space
-        result.point = rotatePoint(result.point, mesh.pivot, mesh.rotX, mesh.rotZ);
-        result.normal = rotateDir(result.normal, mesh.rotX, mesh.rotZ).normalize();
+        // Transform hit point and normal back to world space (forward order)
+
+        // Step 1: Apply part local rotation (X→Y→Z) around part pivot
+        result.point = rotatePoint(result.point, mesh.pivot, mesh.rotX, mesh.rotY, mesh.rotZ);
+        result.normal = rotateDir(result.normal, mesh.rotX, mesh.rotY, mesh.rotZ).normalize();
+
+        if (mesh.hasTorsoTransform) {
+            // Step 2: Apply torso rotation (X→Y→Z) around torso pivot
+            result.point = rotatePoint(result.point, mesh.torsoPivot, mesh.torsoRotX, mesh.torsoRotY, mesh.torsoRotZ);
+            result.normal = rotateDir(result.normal, mesh.torsoRotX, mesh.torsoRotY, mesh.torsoRotZ).normalize();
+
+            // Step 3: Apply torso translation
+            result.point = result.point + mesh.torsoTranslation;
+        }
+
         // Recompute t from original ray
         result.t = (result.point - ray.origin).dot(ray.direction);
     }
 
     return result;
 }
+
 
 HitResult intersectScene(const Ray& ray, const Scene& scene) {
     HitResult closest;

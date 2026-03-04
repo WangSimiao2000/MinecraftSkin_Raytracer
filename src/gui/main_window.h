@@ -11,6 +11,7 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include <QColor>
+#include <array>
 #include <thread>
 
 #include "gui/raster_preview.h"
@@ -81,4 +82,15 @@ private:
     bool skinLoaded_ = false;
     int bounceCountValue_ = 4;
     std::thread renderThread_;
+
+    // Pose control panel widgets
+    // Body part indices: 0=Head, 1=Body, 2=RightArm, 3=LeftArm, 4=RightLeg, 5=LeftLeg
+    // Axis indices: 0=X, 1=Y, 2=Z
+    static constexpr int kNumBodyParts = 6;
+    static constexpr int kNumAxes = 3;
+    std::array<std::array<QSlider*, kNumAxes>, kNumBodyParts> rotSliders_{};
+    std::array<std::array<QLabel*, kNumAxes>, kNumBodyParts> rotLabels_{};
+    std::array<QSlider*, kNumAxes> transSliders_{};
+    std::array<QLabel*, kNumAxes> transLabels_{};
+    QPushButton* resetPoseBtn_ = nullptr;
 };

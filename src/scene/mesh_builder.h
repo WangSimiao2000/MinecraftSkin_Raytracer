@@ -22,12 +22,16 @@ public:
                          float offset);
 
     // Build a box mesh with rotation around a pivot point
+    // Optionally applies torso hierarchical transform after part local rotation
     static Mesh buildBoxWithPose(const BodyPartTexture& tex,
                                  const Vec3& position,
                                  const Vec3& size,
                                  float offset,
                                  const Vec3& pivot,
-                                 const PartPose& partPose);
+                                 const PartPose& partPose,
+                                 const Vec3& torsoTranslation = Vec3{},
+                                 const Vec3& torsoPivot = Vec3{},
+                                 const PartPose& torsoPose = PartPose{});
 
     // Check if all pixels in all 6 faces of a BodyPartTexture are fully transparent
     static bool isFullyTransparent(const BodyPartTexture& tex);

@@ -20,7 +20,16 @@ struct Mesh {
     bool hasRotation = false;
     Vec3 pivot;        // rotation pivot point
     float rotX = 0.0f; // pitch degrees
+    float rotY = 0.0f; // yaw degrees (Y-axis rotation)
     float rotZ = 0.0f; // roll degrees
+
+    // Torso hierarchical transform (for raytracer inverse-transform)
+    bool hasTorsoTransform = false;
+    Vec3 torsoTranslation;   // torso translation offset
+    Vec3 torsoPivot;         // torso rotation pivot point
+    float torsoRotX = 0.0f;
+    float torsoRotY = 0.0f;
+    float torsoRotZ = 0.0f;
 
     // Unrotated triangles for AABB intersection in local space
     std::vector<Triangle> localTriangles;
@@ -35,7 +44,14 @@ struct Mesh {
         , hasRotation(other.hasRotation)
         , pivot(other.pivot)
         , rotX(other.rotX)
+        , rotY(other.rotY)
         , rotZ(other.rotZ)
+        , hasTorsoTransform(other.hasTorsoTransform)
+        , torsoTranslation(other.torsoTranslation)
+        , torsoPivot(other.torsoPivot)
+        , torsoRotX(other.torsoRotX)
+        , torsoRotY(other.torsoRotY)
+        , torsoRotZ(other.torsoRotZ)
         , localTriangles(other.localTriangles)
     {
         fixupTexturePointers(other);
@@ -50,7 +66,14 @@ struct Mesh {
             hasRotation = other.hasRotation;
             pivot = other.pivot;
             rotX = other.rotX;
+            rotY = other.rotY;
             rotZ = other.rotZ;
+            hasTorsoTransform = other.hasTorsoTransform;
+            torsoTranslation = other.torsoTranslation;
+            torsoPivot = other.torsoPivot;
+            torsoRotX = other.torsoRotX;
+            torsoRotY = other.torsoRotY;
+            torsoRotZ = other.torsoRotZ;
             localTriangles = other.localTriangles;
             fixupTexturePointers(other);
         }
@@ -65,7 +88,14 @@ struct Mesh {
         , hasRotation(other.hasRotation)
         , pivot(other.pivot)
         , rotX(other.rotX)
+        , rotY(other.rotY)
         , rotZ(other.rotZ)
+        , hasTorsoTransform(other.hasTorsoTransform)
+        , torsoTranslation(other.torsoTranslation)
+        , torsoPivot(other.torsoPivot)
+        , torsoRotX(other.torsoRotX)
+        , torsoRotY(other.torsoRotY)
+        , torsoRotZ(other.torsoRotZ)
         , localTriangles(std::move(other.localTriangles))
     {
         fixupTexturePointersAfterMove(other);
@@ -80,7 +110,14 @@ struct Mesh {
             hasRotation = other.hasRotation;
             pivot = other.pivot;
             rotX = other.rotX;
+            rotY = other.rotY;
             rotZ = other.rotZ;
+            hasTorsoTransform = other.hasTorsoTransform;
+            torsoTranslation = other.torsoTranslation;
+            torsoPivot = other.torsoPivot;
+            torsoRotX = other.torsoRotX;
+            torsoRotY = other.torsoRotY;
+            torsoRotZ = other.torsoRotZ;
             localTriangles = std::move(other.localTriangles);
             fixupTexturePointersAfterMove(other);
         }
