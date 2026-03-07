@@ -135,6 +135,7 @@ function Handle-MissingDeps {
 $script:BuildApp   = $true
 $script:BuildTests = $true
 $script:BuildType  = "Release"
+$script:EnableVulkanRT = $false
 $script:CMakeExtra = @()
 $script:Generator  = $null
 
@@ -175,6 +176,18 @@ function Select-Modules {
         default { $script:BuildType = "Release" }
     }
     Write-Info "Build type: $($script:BuildType)"
+    Write-Host ""
+
+    # Vulkan RT
+    Write-Host ""
+    Write-Host "GPU ray tracing (requires Vulkan SDK):" -ForegroundColor White
+    Write-Host "  1) Off   2) On"
+    Write-Ask "Choice [1/2], default 1: "
+    $vk = Read-Host
+    switch ($vk) {
+        "2" { $script:EnableVulkanRT = $true; Write-Info "Vulkan RT: ON" }
+        default { $script:EnableVulkanRT = $false; Write-Info "Vulkan RT: OFF" }
+    }
     Write-Host ""
 
     # Qt6 path
@@ -290,6 +303,10 @@ function Build-Project {
     }
     else {
         $cmakeArgs += "-DBUILD_TESTS=OFF"
+    }
+
+    if ($script:EnableVulkanRT) {
+        $cmakeArgs += "-DENABLE_VULKAN_RT=ON"
     }
 
     $cmakeArgs += $script:CMakeExtra

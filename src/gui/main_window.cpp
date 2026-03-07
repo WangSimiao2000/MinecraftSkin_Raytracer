@@ -11,12 +11,15 @@
 #include <QScrollArea>
 #include <QColorDialog>
 #include <QApplication>
+#include <QStandardItemModel>
 
 #include "skin/skin_parser.h"
 #include "skin/skin_fetcher.h"
 #include "scene/mesh_builder.h"
-#include "raytracer/tile_renderer.h"
 #include "output/image_writer.h"
+#include "renderer/renderer.h"
+#include "renderer/cpu_renderer.h"
+#include "vulkan/gpu_renderer.h"
 
 // Event filter that blocks wheel events on unfocused widgets
 class NoScrollWheelFilter : public QObject {
@@ -365,6 +368,31 @@ void MainWindow::setupUi()
     sppCount_->setValue(64);
     renderForm->addRow(tr("采样数 (AA):"), sppCount_);
 
+    // Render backend selector
+    backendSelector_ = new QComboBox(this);
+    backendSelector_->addItem(tr("CPU 光线追踪"));
+    gpuCapability_ = DeviceCapabilityDetector::detect();
+    if (gpuCapability_.available) {
+        backendSelector_->addItem(
+            tr("GPU 光线追踪 (%1)").arg(QString::fromStdString(gpuCapability_.deviceName)));
+    } else {
+        backendSelector_->addItem(tr("GPU 光线追踪 (不可用)"));
+        // Disable the GPU item via the item model
+        auto* model = qobject_cast<QStandardItemModel*>(backendSelector_->model());
+        if (model) {
+            QStandardItem* gpuItem = model->item(1);
+            gpuItem->setEnabled(false);
+            gpuItem->setToolTip(tr("未检测到支持光线追踪的 GPU"));
+        }
+    }
+    backendSelector_->setCurrentIndex(0); // Default to CPU
+    selectedBackend_ = RenderBackend::CPU;
+    connect(backendSelector_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int index) {
+                selectedBackend_ = (index == 1) ? RenderBackend::GPU : RenderBackend::CPU;
+            });
+    renderForm->addRow(tr("渲染后端:"), backendSelector_);
+
     panel->addWidget(renderGroup);
 
     // Visual effects
@@ -482,7 +510,8 @@ void MainWindow::setupUi()
     // Disable wheel-to-change on all spinboxes and combos
     for (auto* w : std::initializer_list<QWidget*>{
             bounceCount_, sppCount_, aoSamples_, outputWidth_, outputHeight_,
-            gradientScale_, aperture_, shadowSamples_, lightRadius_, poseCombo_}) {
+            gradientScale_, aperture_, shadowSamples_, lightRadius_, poseCombo_,
+            backendSelector_}) {
         w->setFocusPolicy(Qt::StrongFocus);
         w->installEventFilter(wheelFilter);
     }
@@ -663,13 +692,15 @@ void MainWindow::onRenderExport()
     // Disable all controls during rendering
     setControlsEnabled(false);
 
-    RayTracer::Config config;
+    // Build RenderConfig from UI controls
+    RenderConfig config;
     config.width = outputWidth_->value();
     config.height = outputHeight_->value();
     config.maxBounces = bounceCountValue_;
     config.samplesPerPixel = sppCount_->value();
-    config.tileSize = 32;
-    config.threadCount = 0;
+
+    // Light source
+    config.lightRadius = static_cast<float>(lightRadius_->value());
 
     // Visual effects
     config.gradientBg = gradientBgCheck_->isChecked();
@@ -690,23 +721,43 @@ void MainWindow::onRenderExport()
     Scene sceneCopy = scene_;
     std::string outPathStd = outputPath.toStdString();
 
+    // Create the appropriate IRenderer based on selected backend
+    std::shared_ptr<IRenderer> renderer;
+    if (selectedBackend_ == RenderBackend::GPU) {
+        renderer = std::make_shared<GpuRenderer>();
+    } else {
+        renderer = std::make_shared<CpuRenderer>();
+    }
+
     if (renderThread_.joinable())
         renderThread_.join();
 
     renderThread_ = std::thread([this, sceneCopy = std::move(sceneCopy),
-                                  config, outPathStd]() {
-        Image image = TileRenderer::render(sceneCopy, config,
+                                  config, outPathStd, renderer]() {
+        RenderResult result = renderer->render(sceneCopy, config,
             [this](int done, int total) {
                 QMetaObject::invokeMethod(this,
                     [this, done, total]() { onRenderProgress(done, total); },
                     Qt::QueuedConnection);
             });
 
-        bool ok = ImageWriter::writePNG(image, outPathStd);
-        QString path = QString::fromStdString(outPathStd);
-        QMetaObject::invokeMethod(this,
-            [this, path, ok]() { onRenderFinished(path, ok); },
-            Qt::QueuedConnection);
+        if (result.success) {
+            bool ok = ImageWriter::writePNG(result.image, outPathStd);
+            QString path = QString::fromStdString(outPathStd);
+            QMetaObject::invokeMethod(this,
+                [this, path, ok]() { onRenderFinished(path, ok); },
+                Qt::QueuedConnection);
+        } else {
+            QString errorMsg = QString::fromStdString(result.errorMessage);
+            QMetaObject::invokeMethod(this,
+                [this, errorMsg]() {
+                    setControlsEnabled(true);
+                    progressBar_->setVisible(false);
+                    QMessageBox::critical(this, tr("渲染失败"),
+                        tr("渲染失败：%1\n\n请尝试切换至 CPU 后端重试。").arg(errorMsg));
+                },
+                Qt::QueuedConnection);
+        }
     });
 }
 
@@ -774,6 +825,7 @@ void MainWindow::setControlsEnabled(bool enabled)
     shadowSamples_->setEnabled(enabled);
     lightRadius_->setEnabled(enabled);
     renderBtn_->setEnabled(enabled);
+    backendSelector_->setEnabled(enabled);
     preview_->setInteractionEnabled(enabled);
 
     // Pose control widgets

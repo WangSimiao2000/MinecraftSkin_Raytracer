@@ -22,6 +22,10 @@ set(TEST_SOURCES
     test_camera_controller_props.cpp
     test_pose_control_props.cpp
     test_pose_control.cpp
+    test_cpu_renderer.cpp
+    test_device_capability.cpp
+    test_gpu_renderer.cpp
+    test_acceleration_structure_props.cpp
 )
 
 # GUI sources needed for GUI tests (not part of mcskin_core)
@@ -46,4 +50,4 @@ target_link_libraries(mcskin_tests PRIVATE
 )
 
 include(GoogleTest)
-gtest_discover_tests(mcskin_tests DISCOVERY_MODE POST_BUILD)
+gtest_discover_tests(mcskin_tests DISCOVERY_MODE PRE_TEST)

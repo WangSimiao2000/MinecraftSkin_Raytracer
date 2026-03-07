@@ -9,7 +9,8 @@
 param(
     [string]$QtPath = "",
     [string]$Version = "1.0.0",
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$EnableVulkanRT
 )
 
 $ErrorActionPreference = "Stop"
@@ -69,7 +70,7 @@ if (-not $SkipBuild) {
         New-Item -ItemType Directory -Path $BuildDir | Out-Null
     }
 
-    & cmake -S $ProjectDir -B $BuildDir -DCMAKE_PREFIX_PATH="$QtRoot" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF
+    & cmake -S $ProjectDir -B $BuildDir -DCMAKE_PREFIX_PATH="$QtRoot" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF $(if ($EnableVulkanRT) { "-DENABLE_VULKAN_RT=ON" })
     if ($LASTEXITCODE -ne 0) { Write-Err "CMake configure failed."; exit 1 }
 
     $jobs = if ($env:NUMBER_OF_PROCESSORS) { $env:NUMBER_OF_PROCESSORS } else { "4" }

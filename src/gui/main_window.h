@@ -18,6 +18,7 @@
 #include "scene/scene.h"
 #include "scene/pose.h"
 #include "skin/skin_parser.h"
+#include "vulkan/device_capability.h"
 
 class SkinFetcher;
 
@@ -82,6 +83,12 @@ private:
     bool skinLoaded_ = false;
     int bounceCountValue_ = 4;
     std::thread renderThread_;
+
+    // Render backend selection
+    enum class RenderBackend { CPU, GPU };
+    QComboBox* backendSelector_ = nullptr;
+    RenderBackend selectedBackend_ = RenderBackend::CPU;
+    GpuCapability gpuCapability_;
 
     // Pose control panel widgets
     // Body part indices: 0=Head, 1=Body, 2=RightArm, 3=LeftArm, 4=RightLeg, 5=LeftLeg

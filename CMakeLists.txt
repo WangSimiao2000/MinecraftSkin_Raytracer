@@ -14,6 +14,21 @@ set(CMAKE_AUTOUIC ON)
 
 # ── Options ──────────────────────────────────────────────────────────────────
 option(BUILD_TESTS "Build unit tests" ON)
+option(ENABLE_VULKAN_RT "Enable Vulkan GPU ray tracing backend" OFF)
+
+# ── Vulkan (optional, for GPU ray tracing) ───────────────────────────────────
+if(ENABLE_VULKAN_RT)
+    find_package(Vulkan QUIET)
+    if(NOT Vulkan_FOUND)
+        message(FATAL_ERROR
+            "ENABLE_VULKAN_RT is ON but Vulkan SDK was not found.\n"
+            "Please install the Vulkan SDK (https://vulkan.lunarg.com/sdk/home) "
+            "or set VULKAN_SDK / Vulkan_INCLUDE_DIR / Vulkan_LIBRARY appropriately.\n"
+            "To build without GPU ray tracing, set -DENABLE_VULKAN_RT=OFF.")
+    endif()
+    add_compile_definitions(HAVE_VULKAN_RT)
+    message(STATUS "Vulkan GPU ray tracing enabled (Vulkan ${Vulkan_VERSION})")
+endif()
 
 # ── Qt6 ──────────────────────────────────────────────────────────────────────
 find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGL OpenGLWidgets Network)

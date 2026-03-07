@@ -198,6 +198,7 @@ check_and_handle_deps() {
 BUILD_APP=true
 BUILD_TESTS=true
 BUILD_TYPE="Release"
+ENABLE_VULKAN_RT=false
 
 select_modules() {
     echo -e "${BOLD}请选择要编译的模块:${NC}"
@@ -224,6 +225,18 @@ select_modules() {
     esac
     info "构建类型: $BUILD_TYPE"
     echo ""
+
+    # Vulkan RT
+    echo ""
+    echo -e "${BOLD}GPU 光线追踪 (需要 Vulkan SDK):${NC}"
+    echo "  1) 关闭   2) 开启"
+    ask "选项 [1/2] (默认 1):"
+    read -r vk
+    case "${vk:-1}" in
+        2) ENABLE_VULKAN_RT=true; info "Vulkan RT: ON" ;;
+        *) ENABLE_VULKAN_RT=false; info "Vulkan RT: OFF" ;;
+    esac
+    echo ""
 }
 
 # ── 构建 ─────────────────────────────────────────────────────────────────────
@@ -235,6 +248,7 @@ build_project() {
 
     local cmake_args=(-S "$PROJECT_DIR" -B "$build_dir" -DCMAKE_BUILD_TYPE="$BUILD_TYPE")
     [[ "$BUILD_TESTS" == true ]] && cmake_args+=(-DBUILD_TESTS=ON) || cmake_args+=(-DBUILD_TESTS=OFF)
+    [[ "$ENABLE_VULKAN_RT" == true ]] && cmake_args+=(-DENABLE_VULKAN_RT=ON)
 
     info "cmake ${cmake_args[*]}"
     cmake "${cmake_args[@]}"

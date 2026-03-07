@@ -26,6 +26,7 @@ EXE_NAME="mcskin_raytracer"
 VERSION="1.0.0"
 SKIP_BUILD=false
 QT_PATH=""
+ENABLE_VULKAN_RT=false
 
 # -- Parse arguments --
 
@@ -34,6 +35,7 @@ usage() {
     echo "  -v, --version VERSION   Set version string (default: 1.0.0)"
     echo "  -q, --qt-path PATH      Qt6 installation prefix"
     echo "  -s, --skip-build        Skip build, package existing binary"
+    echo "  --vulkan-rt             Enable Vulkan GPU ray tracing"
     echo "  -h, --help              Show this help"
     exit 0
 }
@@ -43,6 +45,7 @@ while [[ $# -gt 0 ]]; do
         -v|--version)   VERSION="$2"; shift 2 ;;
         -q|--qt-path)   QT_PATH="$2"; shift 2 ;;
         -s|--skip-build) SKIP_BUILD=true; shift ;;
+        --vulkan-rt) ENABLE_VULKAN_RT=true; shift ;;
         -h|--help)      usage ;;
         *) err "Unknown option: $1" ;;
     esac
@@ -56,6 +59,7 @@ if [[ "$SKIP_BUILD" == false ]]; then
 
     cmake_args=(-S "$PROJECT_DIR" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF)
     [[ -n "$QT_PATH" ]] && cmake_args+=("-DCMAKE_PREFIX_PATH=$QT_PATH")
+    [[ "$ENABLE_VULKAN_RT" == true ]] && cmake_args+=("-DENABLE_VULKAN_RT=ON")
 
     cmake "${cmake_args[@]}"
     cmake --build "$BUILD_DIR" --target "$EXE_NAME" -j"$(nproc 2>/dev/null || echo 4)"
