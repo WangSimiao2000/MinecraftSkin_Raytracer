@@ -18,34 +18,18 @@ option(BUILD_TESTS "Build unit tests" ON)
 # ── Qt6 ──────────────────────────────────────────────────────────────────────
 find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGL OpenGLWidgets Network)
 
-# ── FetchContent dependencies ────────────────────────────────────────────────
-include(FetchContent)
+# ── Dependencies (all vendored in third_party/) ──────────────────────────────
 
-# ── GLM (header-only, fetched as source) ─────────────────────────────────────
-FetchContent_Declare(
-    glm
-    GIT_REPOSITORY https://github.com/g-truc/glm.git
-    GIT_TAG        1.0.1
-)
-FetchContent_MakeAvailable(glm)
+# ── GLM (header-only, vendored in third_party/) ─────────────────────────────
+add_subdirectory(third_party/glm)
 
-# ── Google Test + RapidCheck ─────────────────────────────────────────────────
+# ── Google Test + RapidCheck (vendored in third_party/) ──────────────────────
 if(BUILD_TESTS)
-    FetchContent_Declare(
-        googletest
-        GIT_REPOSITORY https://github.com/google/googletest.git
-        GIT_TAG        v1.15.2
-    )
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(googletest)
+    add_subdirectory(third_party/googletest)
 
-    FetchContent_Declare(
-        rapidcheck
-        GIT_REPOSITORY https://github.com/emil-e/rapidcheck.git
-        GIT_TAG        master
-    )
     set(RC_ENABLE_GTEST ON CACHE BOOL "Build RapidCheck GTest integration" FORCE)
-    FetchContent_MakeAvailable(rapidcheck)
+    add_subdirectory(third_party/rapidcheck)
 endif()
 
 # ── stb (header-only, vendored in third_party/) ─────────────────────────────
