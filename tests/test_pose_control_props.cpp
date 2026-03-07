@@ -4,6 +4,8 @@
  * Feature: pose-control
  */
 
+#define _USE_MATH_DEFINES
+#include <cmath>
 #include <gtest/gtest.h>
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
